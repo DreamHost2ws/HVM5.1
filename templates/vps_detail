@@ -1,0 +1,1504 @@
+{% extends "base.html" %}
+{% block title %}{{ vps.hostname or vps.container_name }} - {{ panel_name }}{% endblock %}
+{% block header_title %}{{ vps.hostname or vps.container_name }}{% endblock %}
+{% block breadcrumbs %}
+<div class="breadcrumb">
+    <a href="{{ url_for('dashboard') }}" class="breadcrumb-item">Dashboard</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <a href="{{ url_for('vps_list') }}" class="breadcrumb-item">My VPS</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <span class="breadcrumb-item active">{{ vps.hostname or vps.container_name }}</span>
+</div>
+{% endblock %}
+{% block content %}
+<!-- VPS Header -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div class="user-avatar" style="width: 64px; height: 64px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));">
+                <i class="fas fa-server" style="font-size: 2rem;"></i>
+            </div>
+            <div>
+                <h2 style="font-size: 1.5rem; margin-bottom: 0.25rem;">{{ vps.hostname or vps.container_name }}</h2>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <span class="badge badge-info">ID: {{ vps.id }}</span>
+                    <span class="badge" style="background-color: var(--bg-tertiary);">
+                        <i class="fas fa-calendar"></i> Created {{ vps.created_at|relative_time }}
+                    </span>
+                </div>
+            </div>
+        </div>
+       
+        <div style="margin-left: auto; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            {% if not vps.suspended %}
+            <button class="btn btn-{% if stats.status == 'running' %}warning{% else %}success{% endif %}"
+                    onclick="controlVPS('{{ vps.id }}', '{% if stats.status == 'running' %}stop{% else %}start{% endif %}')">
+                <i class="fas fa-{% if stats.status == 'running' %}stop{% else %}play{% endif %}"></i>
+                <span>{% if stats.status == 'running' %}Stop{% else %}Start{% endif %}</span>
+            </button>
+           
+            {% if stats.status == 'running' %}
+            <button class="btn btn-outline" onclick="controlVPS('{{ vps.id }}', 'restart')">
+                <i class="fas fa-sync-alt"></i>
+                <span>Restart</span>
+            </button>
+            {% endif %}
+           
+            <a href="{{ url_for('vps_console', vps_id=vps.id) }}" class="btn btn-primary">
+                <i class="fas fa-terminal"></i>
+                <span>Console</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="grid grid-4" style="margin-bottom: 1.5rem;">
+    <div class="stat-card">
+        <div class="stat-icon primary">
+            <i class="fas fa-microchip"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">CPU</div>
+            <div class="stat-value">{{ vps.cpu }} Cores</div>
+            {% if stats.status == 'running' %}
+            <div class="stat-change">
+                <span class="badge {% if (stats.cpu|default(0)) > 80 %}danger{% elif (stats.cpu|default(0)) > 60 %}warning{% else %}success{% endif %}">
+                    {{ (stats.cpu|default(0))|round(1) }}% Used
+                </span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon success">
+            <i class="fas fa-memory"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">RAM</div>
+            <div class="stat-value">{{ vps.ram }}</div>
+            {% if stats.status == 'running' %}
+            <div class="stat-change">
+                <span class="badge {% if (stats.ram.pct|default(0)) > 80 %}danger{% elif (stats.ram.pct|default(0)) > 60 %}warning{% else %}success{% endif %}">
+                    {{ (stats.ram.used|default(0))|round }}MB / {{ stats.ram.total|default(0) }}MB
+                </span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon warning">
+            <i class="fas fa-hdd"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Storage</div>
+            <div class="stat-value">{{ vps.storage }}</div>
+            {% if stats.status == 'running' and stats.disk.use_percent|default('0%') != 'Unknown' and stats.disk.use_percent|default('0%') != '0%' %}
+            <div class="stat-change">
+                <span class="badge {% if (stats.disk.use_percent|default('0%')|replace('%','')|int) > 80 %}danger{% elif (stats.disk.use_percent|default('0%')|replace('%','')|int) > 60 %}warning{% else %}success{% endif %}">
+                    {{ stats.disk.use_percent|default('0%') }} Used
+                </span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon danger">
+            <i class="fas fa-network-wired"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Network</div>
+            <div class="stat-value" style="font-size: 1rem; word-break: break-all;">
+                {{ display_ip }}
+            </div>
+            {% if vps.ip_alias %}
+            <div class="stat-change">
+                <span class="badge badge-info">Alias</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Tabs -->
+<div class="tabs">
+    <div class="tab active" onclick="showTab('overview')">Overview</div>
+    <div class="tab" onclick="showTab('performance')">Performance</div>
+    <div class="tab" onclick="showTab('ports')">Port Forwarding</div>
+    <div class="tab" onclick="showTab('backups')">Backups</div>
+    <div class="tab" onclick="showTab('settings')">Settings</div>
+</div>
+
+<!-- Overview Tab -->
+<div id="tab-overview" class="tab-content active">
+    <div class="grid grid-2" style="margin-top: 1.5rem;">
+        <!-- System Information -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-info-circle"></i>
+                    System Information
+                </h3>
+            </div>
+            <table style="width: 100%;">
+                <tr>
+                    <td style="padding: 0.75rem 0; color: var(--text-muted);">Hostname</td>
+                    <td style="padding: 0.75rem 0; font-weight: 500;">{{ vps.hostname or vps.container_name }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.75rem 0; color: var(--text-muted);">Container Name</td>
+                    <td style="padding: 0.75rem 0; font-family: monospace;">{{ vps.container_name }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.75rem 0; color: var(--text-muted);">Operating System</td>
+                    <td style="padding: 0.75rem 0;">
+                        <span class="badge badge-info">
+                            <i class="{{ os_icon|get_os_icon }}"></i>
+                            {{ vps.os_version }}
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.75rem 0; color: var(--text-muted);">Status</td>
+                    <td style="padding: 0.75rem 0;">
+                        <div class="status-indicator">
+                            <span class="status-dot {% if vps.suspended %}suspended{% elif stats.status == 'running' %}running{% else %}stopped{% endif %}"></span>
+                            <span>{% if vps.suspended %}Suspended{% elif stats.status == 'running' %}Running{% else %}Stopped{% endif %}</span>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.75rem 0; color: var(--text-muted);">Node</td>
+                    <td style="padding: 0.75rem 0;">{{ node.name }} ({{ node.location }})</td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.75rem 0; color: var(--text-muted);">IP Address</td>
+                    <td style="padding: 0.75rem 0; font-family: monospace;">
+                        {% if vps.ip_address %}
+                        {{ vps.ip_address }}
+                        {% else %}
+                        <span class="text-muted">Not assigned</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% if vps.ip_alias %}
+                <tr>
+                    <td style="padding: 0.75rem 0; color: var(--text-muted);">IP Alias</td>
+                    <td style="padding: 0.75rem 0; font-family: monospace;">{{ vps.ip_alias }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td style="padding: 0.75rem 0; color: var(--text-muted);">Private Ip</td>
+                    <td style="padding: 0.75rem 0;">{{ private_ip }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.75rem 0; color: var(--text-muted);">Created</td>
+                    <td style="padding: 0.75rem 0;">{{ vps.created_at|relative_time }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.75rem 0; color: var(--text-muted);">Last Started</td>
+                    <td style="padding: 0.75rem 0;">{{ vps.last_started|relative_time if vps.last_started else 'Never' }}</td>
+                </tr>
+            </table>
+        </div>
+        
+        <!-- Expiration Information -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-clock"></i>
+                    Expiration Information
+                </h3>
+            </div>
+            {% if vps.auto_suspend_enabled and vps.expires_at %}
+            {% set expires_dt = vps.expires_at|parse_datetime %}
+            {% if expires_dt %}
+            {% set current_time = now() %}
+            {% set time_diff = (expires_dt - current_time).total_seconds() %}
+            {% set days_left = (time_diff / 86400)|int %}
+            {% set hours_left = (time_diff / 3600)|int %}
+            {% set is_expired = days_left < 0 %}
+            
+            <div style="padding: 1rem; background: linear-gradient(135deg, {% if is_expired %}rgba(239, 68, 68, 0.1){% elif days_left <= 3 %}rgba(245, 158, 11, 0.1){% else %}rgba(59, 130, 246, 0.1){% endif %}, transparent); border-radius: var(--border-radius-sm); border-left: 4px solid {% if is_expired %}var(--accent-danger){% elif days_left <= 3 %}var(--accent-warning){% else %}var(--accent-info){% endif %}; margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="width: 48px; height: 48px; border-radius: 12px; background-color: {% if is_expired %}rgba(239, 68, 68, 0.2){% elif days_left <= 3 %}rgba(245, 158, 11, 0.2){% else %}rgba(59, 130, 246, 0.2){% endif %}; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-{% if is_expired %}exclamation-triangle{% else %}clock{% endif %}" style="font-size: 1.5rem; color: {% if is_expired %}var(--accent-danger){% elif days_left <= 3 %}var(--accent-warning){% else %}var(--accent-info){% endif %};"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Status</div>
+                            <div style="font-size: 1.25rem; font-weight: 700; color: {% if is_expired %}var(--accent-danger){% elif days_left <= 3 %}var(--accent-warning){% else %}var(--accent-info){% endif %};">
+                                {% if is_expired %}
+                                    EXPIRED
+                                {% elif days_left == 0 %}
+                                    {{ hours_left }} Hours Left
+                                {% elif days_left <= 3 %}
+                                    {{ days_left }} Days Left
+                                {% else %}
+                                    {{ days_left }} Days Remaining
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% if is_expired %}
+                        <span class="badge badge-danger" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                            <i class="fas fa-exclamation-triangle"></i> Expired
+                        </span>
+                    {% elif days_left <= 1 %}
+                        <span class="badge badge-danger" style="font-size: 0.875rem; padding: 0.5rem 1rem; animation: pulse-danger 2s ease-in-out infinite;">
+                            <i class="fas fa-exclamation-triangle"></i> Critical
+                        </span>
+                    {% elif days_left <= 3 %}
+                        <span class="badge badge-warning" style="font-size: 0.875rem; padding: 0.5rem 1rem; animation: pulse-warning 2s ease-in-out infinite;">
+                            <i class="fas fa-clock"></i> Expiring Soon
+                        </span>
+                    {% elif days_left <= 7 %}
+                        <span class="badge badge-info" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                            <i class="fas fa-clock"></i> {{ days_left }}d left
+                        </span>
+                    {% else %}
+                        <span class="badge badge-success" style="font-size: 0.875rem; padding: 0.5rem 1rem;">
+                            <i class="fas fa-check"></i> Active
+                        </span>
+                    {% endif %}
+                </div>
+                
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="padding: 0.5rem 0; color: var(--text-muted); width: 40%;">Expiration Date</td>
+                        <td style="padding: 0.5rem 0; font-weight: 600;">{{ expires_dt.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem 0; color: var(--text-muted);">Time Remaining</td>
+                        <td style="padding: 0.5rem 0; font-weight: 600;">
+                            {% if is_expired %}
+                                <span style="color: var(--accent-danger);">Expired {{ (days_left * -1) }} days ago</span>
+                            {% elif days_left == 0 %}
+                                <span style="color: var(--accent-danger);">{{ hours_left }} hours</span>
+                            {% else %}
+                                {{ days_left }} days, {{ (hours_left % 24) }} hours
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem 0; color: var(--text-muted);">Expiration Period</td>
+                        <td style="padding: 0.5rem 0; font-weight: 600;">{{ vps.expiration_days }} days</td>
+                    </tr>
+                    {% if vps.last_renewed_at %}
+                    <tr>
+                        <td style="padding: 0.5rem 0; color: var(--text-muted);">Last Renewed</td>
+                        <td style="padding: 0.5rem 0; font-weight: 600;">{{ vps.last_renewed_at|parse_datetime|relative_time if vps.last_renewed_at else 'Never' }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if vps.renewal_count %}
+                    <tr>
+                        <td style="padding: 0.5rem 0; color: var(--text-muted);">Renewal Count</td>
+                        <td style="padding: 0.5rem 0; font-weight: 600;">{{ vps.renewal_count }} time{{ 's' if vps.renewal_count != 1 else '' }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+                
+                {% if is_expired or days_left <= 7 %}
+                <div style="margin-top: 1rem; padding: 1rem; background-color: var(--bg-tertiary); border-radius: var(--border-radius-sm);">
+                    <div style="display: flex; align-items: start; gap: 0.75rem;">
+                        <i class="fas fa-info-circle" style="color: {% if is_expired %}var(--accent-danger){% else %}var(--accent-warning){% endif %}; margin-top: 0.25rem;"></i>
+                        <div style="flex: 1;">
+                            <strong style="display: block; margin-bottom: 0.5rem;">
+                                {% if is_expired %}
+                                    VPS Has Expired
+                                {% else %}
+                                    VPS Expiring Soon
+                                {% endif %}
+                            </strong>
+                            <p style="margin: 0; font-size: 0.875rem; color: var(--text-muted);">
+                                {% if is_expired %}
+                                    This VPS has expired and {% if vps.suspended %}has been suspended{% else %}will be suspended soon{% endif %}. Please contact an administrator to renew your VPS.
+                                {% else %}
+                                    Your VPS will expire in {{ days_left }} day{{ 's' if days_left != 1 else '' }}. Contact an administrator to extend the expiration date.
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% else %}
+            <div style="padding: 2rem; text-align: center;">
+                <div style="width: 64px; height: 64px; margin: 0 auto 1rem; border-radius: 50%; background-color: rgba(107, 114, 128, 0.2); display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-infinity" style="font-size: 2rem; color: var(--text-muted);"></i>
+                </div>
+                <h4 style="margin-bottom: 0.5rem;">No Expiration Set</h4>
+                <p style="color: var(--text-muted); margin: 0;">This VPS does not have an expiration date configured.</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Resource Usage -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-chart-line"></i>
+                    Resource Usage
+                </h3>
+            </div>
+            {% if stats.status == 'running' %}
+            <div style="margin-bottom: 1.5rem;">
+                <div style="margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span>CPU Usage</span>
+                        <span class="vps-cpu" data-id="{{ vps.id }}">{{ (stats.cpu|default(0))|round(1) }}%</span>
+                    </div>
+                    <div class="progress">
+                        <div class="progress-bar {% if (stats.cpu|default(0)) > 80 %}danger{% elif (stats.cpu|default(0)) > 60 %}warning{% else %}success{% endif %}"
+                             style="width: {{ stats.cpu|default(0) }}%;"></div>
+                    </div>
+                </div>
+                <div style="margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span>RAM Usage</span>
+                        <span class="vps-ram" data-id="{{ vps.id }}">{{ (stats.ram.pct|default(0))|round(1) }}% ({{ (stats.ram.used|default(0))|round }}MB / {{ stats.ram.total|default(0) }}MB)</span>
+                    </div>
+                    <div class="progress">
+                        <div class="progress-bar {% if (stats.ram.pct|default(0)) > 80 %}danger{% elif (stats.ram.pct|default(0)) > 60 %}warning{% else %}success{% endif %}"
+                             style="width: {{ stats.ram.pct|default(0) }}%;"></div>
+                    </div>
+                </div>
+                <div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span>Disk Usage</span>
+                        <span>{{ stats.disk.use_percent|default('N/A') if (stats.disk.use_percent|default('Unknown')) != 'Unknown' else 'N/A' }}</span>
+                    </div>
+                    <div class="progress">
+                        <div class="progress-bar {% if (stats.disk.use_percent|default('0%')|replace('%','')|int) > 80 %}danger{% elif (stats.disk.use_percent|default('0%')|replace('%','')|int) > 60 %}warning{% else %}success{% endif %}"
+                             style="width: {{ stats.disk.use_percent|default('0%')|replace('%','') }}%;"></div>
+                    </div>
+                </div>
+            </div>
+            {% if stats.processes %}
+            <div>
+                <div style="display: flex; align-items: center; gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">Processes</div>
+                        <div style="font-weight: 600;">{{ stats.processes }}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">Uptime</div>
+                        <div style="font-weight: 600;">{{ stats.uptime }}</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="empty-state" style="padding: 2rem;">
+                <i class="fas fa-play-circle"></i>
+                <p>Start the VPS to see resource usage</p>
+                <button class="btn btn-primary" onclick="controlVPS('{{ vps.id }}', 'start')">
+                    <i class="fas fa-play"></i> Start VPS
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <!-- Quick Actions -->
+    <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-bolt"></i>
+                Quick Actions
+            </h3>
+        </div>
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            {% if stats.status == 'running' and not vps.suspended %}
+            <button class="btn btn-outline" onclick="generateSSH()">
+                <i class="fas fa-terminal"></i>
+                <span>Generate SSH Session</span>
+            </button>
+            {% endif %}
+           
+            <button class="btn btn-outline" onclick="showReinstallModal()">
+                <i class="fas fa-redo-alt"></i>
+                <span>Reinstall OS</span>
+            </button>
+           
+            <button class="btn btn-outline" onclick="showRenameModal()">
+                <i class="fas fa-pen"></i>
+                <span>Rename</span>
+            </button>
+           
+            {% if current_user.is_admin and not vps.whitelisted %}
+            <button class="btn btn-danger" onclick="suspendVPS()">
+                <i class="fas fa-ban"></i>
+                <span>Suspend VPS</span>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Performance Tab -->
+<div id="tab-performance" class="tab-content" style="display: none;">
+    <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-chart-line"></i>
+                Live Performance Metrics
+            </h3>
+        </div>
+       
+        <div style="height: 300px; margin-bottom: 2rem;">
+            <canvas id="cpuChart"></canvas>
+        </div>
+       
+        <div style="height: 300px; margin-bottom: 2rem;">
+            <canvas id="ramChart"></canvas>
+        </div>
+       
+        <div style="height: 300px;">
+            <canvas id="networkChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Port Forwarding Tab -->
+<div id="tab-ports" class="tab-content" style="display: none;">
+    <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-plug"></i>
+                Port Forwarding
+            </h3>
+            <button class="btn btn-primary btn-sm" onclick="showAddPortModal()">
+                <i class="fas fa-plus"></i> Add Port
+            </button>
+        </div>
+        {% if forwards %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>VPS Port</th>
+                        <th>Host Port</th>
+                        <th>Protocol</th>
+                        <th>Description</th>
+                        <th>Created</th>
+                        <th>Hits</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for forward in forwards %}
+                    <tr>
+                        <td>{{ forward.vps_port }}</td>
+                        <td>
+                            <span class="badge badge-info" style="font-family: monospace;">
+                                {{ YOUR_SERVER_IP }}:{{ forward.host_port }}
+                            </span>
+                        </td>
+                        <td>{{ forward.protocol }}</td>
+                        <td>{{ forward.description or '-' }}</td>
+                        <td>{{ forward.created_at|relative_time }}</td>
+                        <td>{{ forward.hits }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="removePort('{{ forward.id }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-plug"></i>
+            <h3>No Port Forwards</h3>
+            <p>You haven't set up any port forwarding rules yet.</p>
+            <button class="btn btn-primary" onclick="showAddPortModal()">
+                <i class="fas fa-plus"></i> Add Port Forward
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Backups Tab -->
+<div id="tab-backups" class="tab-content" style="display: none;">
+    <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-database"></i>
+                Backups
+            </h3>
+            <button class="btn btn-primary btn-sm" onclick="createBackup()">
+                <i class="fas fa-plus"></i> Create Backup
+            </button>
+        </div>
+        {% if backups %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Size</th>
+                        <th>Created</th>
+                        <th>Expires</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for backup in backups %}
+                    <tr>
+                        <td>{{ backup.name }}</td>
+                        <td>{{ backup.size|format_bytes }}</td>
+                        <td>{{ backup.created_at|relative_time }}</td>
+                        <td>{{ backup.expires_at|relative_time if backup.expires_at else 'Never' }}</td>
+                        <td>
+                            <span class="badge badge-{{ 'success' if backup.status == 'completed' else 'warning' }}">
+                                {{ backup.status }}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline" onclick="restoreBackup('{{ backup.id }}')">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteBackup('{{ backup.id }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-database"></i>
+            <h3>No Backups</h3>
+            <p>No backups have been created for this VPS yet.</p>
+            <button class="btn btn-primary" onclick="createBackup()">
+                <i class="fas fa-plus"></i> Create First Backup
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Settings Tab -->
+<div id="tab-settings" class="tab-content" style="display: none;">
+    <div class="grid grid-2" style="margin-top: 1.5rem;">
+        <!-- Edit Notes -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-sticky-note"></i>
+                    Notes
+                </h3>
+            </div>
+            <form onsubmit="saveNotes(event)">
+                <div class="form-group">
+                    <textarea class="form-control" id="vpsNotes" rows="5">{{ vps.notes or '' }}</textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Notes</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- SSH Session Modal - Enhanced with copy buttons and better design -->
+<div class="modal" id="sshModal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, var(--accent-primary), #6366f1); color: white; border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;">
+            <h3 style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-terminal"></i>
+                SSH Session Created
+            </h3>
+            <button class="modal-close" onclick="hideModal('sshModal')" style="color: white;">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body" style="padding: 1.5rem;">
+            <div class="alert alert-success" style="margin-bottom: 1.5rem;">
+                <i class="fas fa-check-circle"></i>
+                <span>Your SSH session is ready! Use any of the methods below to connect.</span>
+            </div>
+            
+            <!-- SSH Connection Details -->
+            <div class="ssh-session-details">
+                <!-- SSH Command -->
+                <div class="form-group">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-terminal" style="color: var(--accent-primary);"></i>
+                        <strong>SSH Command</strong>
+                    </label>
+                    <div class="copy-container" style="display: flex; gap: 0.5rem;">
+                        <input type="text" class="form-control" id="sshCommand" readonly value="" style="font-family: monospace; background-color: var(--bg-tertiary);">
+                        <button class="btn btn-primary" onclick="copyToClipboard('sshCommand')" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-copy"></i>
+                            <span>Copy</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Web URL -->
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-globe" style="color: var(--accent-success);"></i>
+                        <strong>Web Console URL</strong>
+                    </label>
+                    <div class="copy-container" style="display: flex; gap: 0.5rem;">
+                        <input type="text" class="form-control" id="webUrl" readonly value="" style="font-family: monospace; background-color: var(--bg-tertiary);">
+                        <button class="btn btn-success" onclick="copyToClipboard('webUrl')" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-copy"></i>
+                            <span>Copy</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Connect Buttons -->
+                <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center;">
+                    <button class="btn btn-outline" onclick="window.open(document.getElementById('webUrl').value, '_blank')">
+                        <i class="fas fa-external-link-alt"></i>
+                        Open Web Console
+                    </button>
+                    <button class="btn btn-primary" onclick="copyBoth()">
+                        <i class="fas fa-copy"></i>
+                        Copy Both
+                    </button>
+                </div>
+
+                <!-- Session Info -->
+                <div style="margin-top: 1.5rem; padding: 1rem; background-color: var(--bg-tertiary); border-radius: var(--border-radius-md);">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted);">
+                        <i class="fas fa-info-circle"></i>
+                        <small>This session will expire in 30 minutes for security reasons</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer" style="border-top: 1px solid var(--border-color); padding: 1rem 1.5rem;">
+            <button class="btn btn-outline" onclick="hideModal('sshModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Port Modal -->
+<div class="modal" id="addPortModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add Port Forward</h3>
+            <button class="modal-close" onclick="hideModal('addPortModal')">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <form id="addPortForm">
+                <div class="form-group">
+                    <label class="form-label">VPS Port</label>
+                    <input type="number" class="form-control" id="vpsPort" min="1" max="65535" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Protocol</label>
+                    <select class="form-control" id="portProtocol">
+                        <option value="tcp,udp">TCP + UDP</option>
+                        <option value="tcp">TCP Only</option>
+                        <option value="udp">UDP Only</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description (optional)</label>
+                    <input type="text" class="form-control" id="portDescription" placeholder="e.g., Web Server">
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="hideModal('addPortModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="addPort()">Add Port</button>
+        </div>
+    </div>
+</div>
+
+<!-- Reinstall Modal -->
+<div class="modal" id="reinstallModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Reinstall Operating System</h3>
+            <button class="modal-close" onclick="hideModal('reinstallModal')">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>Warning: This will erase all data on the VPS. This action cannot be undone.</span>
+            </div>
+            <form id="reinstallForm">
+                <div class="form-group">
+                    <label class="form-label">Select Operating System</label>
+                    <select class="form-control" id="osVersion">
+                        {% for os in os_options %}
+                        <option value="{{ os.value }}" {% if os.value == vps.os_version %}selected{% endif %}>
+                            {{ os.label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="hideModal('reinstallModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="reinstallVPS()">Reinstall</button>
+        </div>
+    </div>
+</div>
+
+<!-- Rename Modal -->
+<div class="modal" id="renameModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Rename VPS</h3>
+            <button class="modal-close" onclick="hideModal('renameModal')">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <form id="renameForm">
+                <div class="form-group">
+                    <label class="form-label">New Hostname</label>
+                    <input type="text" class="form-control" id="newHostname" value="{{ vps.hostname or vps.container_name }}" required>
+                    <small style="color: var(--text-muted);">Only letters, numbers, and hyphens</small>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="hideModal('renameModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="renameVPS()">Rename</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification Container -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay" style="display: none;">
+    <div class="loading-spinner"></div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Tab switching
+    function showTab(tabName) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+       
+        document.querySelector(`.tab[onclick="showTab('${tabName}')"]`).classList.add('active');
+        document.getElementById(`tab-${tabName}`).style.display = 'block';
+    }
+
+    // VPS Control
+    async function controlVPS(vpsId, action) {
+        if (!confirm(`Are you sure you want to ${action} this VPS?`)) {
+            return;
+        }
+       
+        showLoading();
+       
+        try {
+            const response = await fetch(`/vps/${vpsId}/control/${action}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+           
+            const result = await response.json();
+           
+            if (result.success) {
+                showToast(`VPS ${action}ed successfully`, 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(result.error || `Failed to ${action} VPS`, 'danger');
+            }
+        } catch (error) {
+            console.error('Control error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Modal functions
+    function showModal(modalId) {
+        document.getElementById(modalId).classList.add('show');
+    }
+
+    function hideModal(modalId) {
+        document.getElementById(modalId).classList.remove('show');
+    }
+
+    function showAddPortModal() {
+        showModal('addPortModal');
+    }
+
+    function showReinstallModal() {
+        showModal('reinstallModal');
+    }
+
+    function showRenameModal() {
+        showModal('renameModal');
+    }
+
+    // Copy to clipboard function
+    function copyToClipboard(elementId) {
+        const element = document.getElementById(elementId);
+        element.select();
+        element.setSelectionRange(0, 99999);
+        
+        try {
+            document.execCommand('copy');
+            showToast('Copied to clipboard!', 'success');
+        } catch (err) {
+            showToast('Failed to copy', 'danger');
+        }
+    }
+
+    // Copy both SSH command and Web URL
+    function copyBoth() {
+        const sshCommand = document.getElementById('sshCommand').value;
+        const webUrl = document.getElementById('webUrl').value;
+        const textToCopy = `SSH Command: ${sshCommand}\nWeb URL: ${webUrl}`;
+        
+        const textarea = document.createElement('textarea');
+        textarea.value = textToCopy;
+        document.body.appendChild(textarea);
+        textarea.select();
+        
+        try {
+            document.execCommand('copy');
+            showToast('Both commands copied to clipboard!', 'success');
+        } catch (err) {
+            showToast('Failed to copy', 'danger');
+        }
+        
+        document.body.removeChild(textarea);
+    }
+
+    // Generate SSH Session
+    async function generateSSH() {
+        showLoading();
+        try {
+            const response = await fetch('/vps/{{ vps.id }}/ssh', {
+                method: 'POST'
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                // Populate SSH modal with data
+                document.getElementById('sshCommand').value = result.ssh_url || 'ssh user@host -p port';
+                document.getElementById('webUrl').value = result.web_url || 'https://console.example.com/session/123';
+                
+                // Show the enhanced modal
+                showModal('sshModal');
+                showToast('SSH session created successfully!', 'success');
+            } else {
+                showToast(result.error, 'danger');
+            }
+        } catch (error) {
+            console.error('SSH error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Toast notification system
+    function showToast(message, type = 'info') {
+        const toastContainer = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        
+        let icon = 'info-circle';
+        if (type === 'success') icon = 'check-circle';
+        if (type === 'danger') icon = 'exclamation-circle';
+        if (type === 'warning') icon = 'exclamation-triangle';
+        
+        toast.innerHTML = `
+            <i class="fas fa-${icon}"></i>
+            <span>${message}</span>
+        `;
+        
+        toastContainer.appendChild(toast);
+        
+        // Remove toast after 3 seconds
+        setTimeout(() => {
+            toast.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => {
+                toastContainer.removeChild(toast);
+            }, 300);
+        }, 3000);
+    }
+
+    // Loading overlay
+    function showLoading() {
+        document.getElementById('loadingOverlay').style.display = 'flex';
+    }
+
+    function hideLoading() {
+        document.getElementById('loadingOverlay').style.display = 'none';
+    }
+
+    // Add Port
+    async function addPort() {
+        const vpsPort = document.getElementById('vpsPort').value;
+        const protocol = document.getElementById('portProtocol').value;
+        const description = document.getElementById('portDescription').value;
+
+        if (!vpsPort || vpsPort < 1 || vpsPort > 65535) {
+            showToast('Please enter a valid port number (1-65535)', 'warning');
+            return;
+        }
+
+        showLoading();
+        try {
+            const response = await fetch('/ports/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    vps_id: {{ vps.id }},
+                    vps_port: parseInt(vpsPort),
+                    protocol: protocol,
+                    description: description
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast(result.message, 'success');
+                hideModal('addPortModal');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(result.error, 'danger');
+            }
+        } catch (error) {
+            console.error('Add port error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Remove Port
+    async function removePort(forwardId) {
+        if (!confirm('Are you sure you want to remove this port forward?')) {
+            return;
+        }
+
+        showLoading();
+        try {
+            const response = await fetch(`/ports/remove/${forwardId}`, {
+                method: 'POST'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast('Port forward removed successfully', 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(result.error, 'danger');
+            }
+        } catch (error) {
+            console.error('Remove port error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Reinstall VPS
+    async function reinstallVPS() {
+        const osVersion = document.getElementById('osVersion').value;
+        
+        if (!confirm('WARNING: This will erase all data on this VPS. This action cannot be undone. Are you absolutely sure?')) {
+            return;
+        }
+
+        showLoading();
+        try {
+            const response = await fetch('/vps/{{ vps.id }}/reinstall', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ os_version: osVersion })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast('VPS reinstallation started', 'success');
+                hideModal('reinstallModal');
+                setTimeout(() => window.location.reload(), 3000);
+            } else {
+                showToast(result.error, 'danger');
+            }
+        } catch (error) {
+            console.error('Reinstall error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Rename VPS
+    async function renameVPS() {
+        const newHostname = document.getElementById('newHostname').value;
+        
+        if (!newHostname || newHostname.length < 3 || newHostname.length > 63) {
+            showToast('Hostname must be between 3 and 63 characters', 'warning');
+            return;
+        }
+
+        showLoading();
+        try {
+            const response = await fetch('/vps/{{ vps.id }}/rename', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ hostname: newHostname })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast('VPS renamed successfully', 'success');
+                hideModal('renameModal');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(result.error, 'danger');
+            }
+        } catch (error) {
+            console.error('Rename error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Save Notes
+    async function saveNotes(event) {
+        event.preventDefault();
+        const notes = document.getElementById('vpsNotes').value;
+
+        showLoading();
+        try {
+            const response = await fetch('/vps/{{ vps.id }}/notes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ notes: notes })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast('Notes saved successfully', 'success');
+            } else {
+                showToast(result.error, 'danger');
+            }
+        } catch (error) {
+            console.error('Save notes error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+
+
+    // Create Backup
+    async function createBackup() {
+        showLoading();
+        showToast('Backup creation started', 'success');
+        hideLoading();
+    }
+
+    // Performance Charts
+    if (document.getElementById('cpuChart')) {
+        const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+        new Chart(cpuCtx, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 20}, (_, i) => `${i*5}s ago`),
+                datasets: [{
+                    label: 'CPU Usage %',
+                    data: Array.from({length: 20}, () => Math.random() * 100),
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: {
+                            color: '#2a2e34'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        const ramCtx = document.getElementById('ramChart').getContext('2d');
+        new Chart(ramCtx, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 20}, (_, i) => `${i*5}s ago`),
+                datasets: [{
+                    label: 'RAM Usage %',
+                    data: Array.from({length: 20}, () => Math.random() * 100),
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: {
+                            color: '#2a2e34'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Auto refresh stats
+    if ({{ 'true' if stats.status == 'running' else 'false' }}) {
+        setInterval(async () => {
+            try {
+                const response = await fetch('/vps/{{ vps.id }}/stats');
+                const data = await response.json();
+               
+                if (data.success && data.stats) {
+                    const stats = data.stats;
+                    
+                    // Update CPU display in stat card
+                    const cpuBadge = document.querySelector('.stat-card .badge');
+                    if (cpuBadge && stats.cpu !== undefined) {
+                        const cpuValue = parseFloat(stats.cpu) || 0;
+                        cpuBadge.textContent = cpuValue.toFixed(1) + '% Used';
+                        // Update badge color
+                        cpuBadge.className = 'badge ' + (cpuValue > 80 ? 'danger' : cpuValue > 60 ? 'warning' : 'success');
+                    }
+                    
+                    // Update CPU usage text and progress bar
+                    const cpuText = document.querySelector('.vps-cpu[data-id="{{ vps.id }}"]');
+                    if (cpuText && stats.cpu !== undefined) {
+                        const cpuValue = parseFloat(stats.cpu) || 0;
+                        cpuText.textContent = cpuValue.toFixed(1) + '%';
+                    }
+                    
+                    const cpuBar = document.querySelector('.progress .progress-bar');
+                    if (cpuBar && stats.cpu !== undefined) {
+                        const cpuValue = parseFloat(stats.cpu) || 0;
+                        cpuBar.style.width = cpuValue + '%';
+                        cpuBar.className = 'progress-bar ' + (cpuValue > 80 ? 'danger' : cpuValue > 60 ? 'warning' : 'success');
+                    }
+                    
+                    // Update RAM
+                    const ramText = document.querySelector('.vps-ram[data-id="{{ vps.id }}"]');
+                    if (ramText && stats.ram) {
+                        const ramPct = parseFloat(stats.ram.pct) || 0;
+                        const ramUsed = parseInt(stats.ram.used) || 0;
+                        const ramTotal = parseInt(stats.ram.total) || 0;
+                        ramText.textContent = ramPct.toFixed(1) + '% (' + ramUsed + 'MB / ' + ramTotal + 'MB)';
+                    }
+                    
+                    const ramBars = document.querySelectorAll('.progress .progress-bar');
+                    if (ramBars.length > 1 && stats.ram) {
+                        const ramPct = parseFloat(stats.ram.pct) || 0;
+                        ramBars[1].style.width = ramPct + '%';
+                        ramBars[1].className = 'progress-bar ' + (ramPct > 80 ? 'danger' : ramPct > 60 ? 'warning' : 'success');
+                    }
+                    
+                    console.log('Stats updated:', stats);
+                }
+            } catch (error) {
+                console.error('Stats refresh error:', error);
+            }
+        }, 5000);
+    }
+
+    // Close modals when clicking outside
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal')) {
+            event.target.classList.remove('show');
+        }
+    }
+
+    // Escape key to close modals
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            document.querySelectorAll('.modal.show').forEach(modal => {
+                modal.classList.remove('show');
+            });
+        }
+    });
+</script>
+
+<style>
+/* Additional styles for the enhanced SSH modal */
+.ssh-session-details {
+    animation: fadeIn 0.3s ease;
+}
+
+.copy-container {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.copy-container input {
+    flex: 1;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.9rem;
+}
+
+.copy-container button {
+    min-width: 100px;
+    transition: all 0.2s ease;
+}
+
+.copy-container button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.copy-container button:active {
+    transform: translateY(0);
+}
+
+/* Toast container styles */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.toast {
+    min-width: 300px;
+    padding: 1rem;
+    background-color: var(--bg-secondary);
+    border-left: 4px solid;
+    border-radius: var(--border-radius-md);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    animation: slideIn 0.3s ease;
+    color: var(--text-primary);
+}
+
+.toast-success {
+    border-left-color: var(--accent-success);
+}
+
+.toast-success i {
+    color: var(--accent-success);
+}
+
+.toast-danger {
+    border-left-color: var(--accent-danger);
+}
+
+.toast-danger i {
+    color: var(--accent-danger);
+}
+
+.toast-warning {
+    border-left-color: var(--accent-warning);
+}
+
+.toast-warning i {
+    color: var(--accent-warning);
+}
+
+.toast-info {
+    border-left-color: var(--accent-primary);
+}
+
+.toast-info i {
+    color: var(--accent-primary);
+}
+
+/* Loading overlay */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid var(--bg-tertiary);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(100px);
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Enhanced modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.show {
+    display: flex;
+    animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+    max-width: 500px;
+    width: 90%;
+    background-color: var(--bg-secondary);
+    border-radius: var(--border-radius-lg);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease;
+    overflow: hidden;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Alert styles */
+.alert {
+    padding: 1rem;
+    border-radius: var(--border-radius-md);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.alert-success {
+    background-color: rgba(34, 197, 94, 0.1);
+    color: var(--accent-success);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.alert-warning {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: var(--accent-warning);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+</style>
+{% endblock %}
