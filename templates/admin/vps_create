@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}Create New VPS - {{ panel_name }}{% endblock %}
+
+{% block header_title %}Create New VPS{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumb">
+    <a href="{{ url_for('dashboard') }}" class="breadcrumb-item">Dashboard</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <a href="{{ url_for('admin_dashboard') }}" class="breadcrumb-item">Admin</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <a href="{{ url_for('admin_vps') }}" class="breadcrumb-item">VPS</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <span class="breadcrumb-item active">Create</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-plus-circle"></i>
+            New Virtual Private Server
+        </h3>
+    </div>
+
+    <form id="createVPSForm">
+        <div class="grid grid-2">
+            <div class="form-group">
+                <label class="form-label">Owner <span style="color: var(--accent-danger);">*</span></label>
+                <select id="user_id" class="form-control" required>
+                    <option value="">Select user...</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" {% if request.args.user_id == user.id|string %}selected{% endif %}>
+                        {{ user.username }} ({{ user.email }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Node <span style="color: var(--accent-danger);">*</span></label>
+                <select id="node_id" class="form-control" required>
+                    <option value="">Select node...</option>
+                    {% for node in nodes %}
+                    <option value="{{ node.id }}">
+                        {{ node.name }} ({{ node.location }}) - {{ node.used_vps }}/{{ node.total_vps }} VPS
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Hostname</label>
+                <input type="text" id="hostname" class="form-control" placeholder="e.g., my-vps-01">
+                <small style="color: var(--text-muted);">Leave blank for auto-generated name</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Operating System <span style="color: var(--accent-danger);">*</span></label>
+                <select id="os_version" class="form-control" required>
+                    {% for os in os_options %}
+                    <option value="{{ os.value }}" {% if loop.index == 1 %}selected{% endif %}>
+                        {{ os.label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">CPU Cores <span style="color: var(--accent-danger);">*</span></label>
+                <input type="number" id="cpu" class="form-control" value="2" min="1" max="64" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">RAM (GB) <span style="color: var(--accent-danger);">*</span></label>
+                <input type="number" id="ram" class="form-control" value="2" min="1" max="128" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Disk (GB) <span style="color: var(--accent-danger);">*</span></label>
+                <input type="number" id="disk" class="form-control" value="20" min="5" max="2000" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">IP Address</label>
+                <input type="text" id="ip_address" class="form-control" placeholder="e.g., 10.0.0.100">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">IP Alias (Display)</label>
+                <input type="text" id="ip_alias" class="form-control" placeholder="e.g., vps1.example.com">
+            </div>
+        </div>
+
+        <!-- Auto-Expiration Settings -->
+        <div style="margin: 1.5rem 0; padding: 1rem; background-color: var(--bg-secondary); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
+            <h4 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-clock"></i>
+                Auto-Expiration Settings
+            </h4>
+            
+            <div class="form-group">
+                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" id="auto_suspend_enabled" style="width: auto; margin: 0;">
+                    Enable Auto-Suspend on Expiration
+                </label>
+                <small style="color: var(--text-muted); display: block; margin-top: 0.25rem;">
+                    When enabled, VPS will automatically suspend after the specified number of days
+                </small>
+            </div>
+
+            <div id="expiration-settings" style="display: none; margin-top: 1rem;">
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Expiration Days</label>
+                        <input type="number" id="expiration_days" class="form-control" value="30" min="1" max="365">
+                        <small style="color: var(--text-muted);">Number of days until VPS expires</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Expiration Date (Preview)</label>
+                        <input type="text" id="expiration_preview" class="form-control" readonly style="background-color: var(--bg-tertiary);">
+                        <small style="color: var(--text-muted);">Calculated expiration date</small>
+                    </div>
+                </div>
+
+                <div style="padding: 0.75rem; background-color: var(--bg-tertiary); border-radius: var(--border-radius-sm); border-left: 3px solid var(--accent-warning);">
+                    <div style="display: flex; align-items: start; gap: 0.5rem;">
+                        <i class="fas fa-info-circle" style="color: var(--accent-warning); margin-top: 0.25rem;"></i>
+                        <div>
+                            <strong>How Auto-Expiration Works:</strong>
+                            <ul style="margin: 0.5rem 0 0 1rem; padding: 0;">
+                                <li>VPS will be automatically suspended after the specified days</li>
+                                <li>User receives warning notification 3 days before expiration</li>
+                                <li>Admin can renew VPS at any time to extend the expiration date</li>
+                                <li>Suspended VPS can be unsuspended and renewed by admin</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resource Summary -->
+        <div style="margin: 1.5rem 0; padding: 1rem; background-color: var(--bg-tertiary); border-radius: var(--border-radius-sm);">
+            <h4 style="margin-bottom: 1rem;">Resource Summary</h4>
+            <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+                <div>
+                    <span style="color: var(--text-muted);">Total CPU:</span>
+                    <span id="summary-cpu">2 cores</span>
+                </div>
+                <div>
+                    <span style="color: var(--text-muted);">Total RAM:</span>
+                    <span id="summary-ram">2 GB</span>
+                </div>
+                <div>
+                    <span style="color: var(--text-muted);">Total Storage:</span>
+                    <span id="summary-disk">20 GB</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+            <a href="{{ url_for('admin_vps') }}" class="btn btn-outline">
+                Cancel
+            </a>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Create VPS
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Update summary
+    document.getElementById('cpu').addEventListener('input', function(e) {
+        document.getElementById('summary-cpu').textContent = e.target.value + ' cores';
+    });
+
+    document.getElementById('ram').addEventListener('input', function(e) {
+        document.getElementById('summary-ram').textContent = e.target.value + ' GB';
+    });
+
+    document.getElementById('disk').addEventListener('input', function(e) {
+        document.getElementById('summary-disk').textContent = e.target.value + ' GB';
+    });
+
+    // Toggle expiration settings
+    document.getElementById('auto_suspend_enabled').addEventListener('change', function(e) {
+        const expirationSettings = document.getElementById('expiration-settings');
+        if (e.target.checked) {
+            expirationSettings.style.display = 'block';
+            updateExpirationPreview();
+        } else {
+            expirationSettings.style.display = 'none';
+        }
+    });
+
+    // Update expiration preview
+    function updateExpirationPreview() {
+        const days = parseInt(document.getElementById('expiration_days').value) || 30;
+        const now = new Date();
+        const expirationDate = new Date(now.getTime() + (days * 24 * 60 * 60 * 1000));
+        
+        const formatted = expirationDate.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        document.getElementById('expiration_preview').value = formatted + ` (${days} days from now)`;
+    }
+
+    document.getElementById('expiration_days').addEventListener('input', updateExpirationPreview);
+
+    // Form submission
+    document.getElementById('createVPSForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const user_id = document.getElementById('user_id').value;
+        const node_id = document.getElementById('node_id').value;
+        const hostname = document.getElementById('hostname').value;
+        const os_version = document.getElementById('os_version').value;
+        const cpu = document.getElementById('cpu').value;
+        const ram = document.getElementById('ram').value;
+        const disk = document.getElementById('disk').value;
+        const ip_address = document.getElementById('ip_address').value;
+        const ip_alias = document.getElementById('ip_alias').value;
+        const auto_suspend_enabled = document.getElementById('auto_suspend_enabled').checked;
+        const expiration_days = auto_suspend_enabled ? parseInt(document.getElementById('expiration_days').value) : 0;
+
+        if (!user_id || !node_id || !os_version) {
+            showToast('Please fill in all required fields', 'warning');
+            return;
+        }
+
+        if (auto_suspend_enabled && (!expiration_days || expiration_days < 1)) {
+            showToast('Please enter a valid expiration period (minimum 1 day)', 'warning');
+            return;
+        }
+
+        showLoading();
+
+        try {
+            const response = await fetch('/admin/vps/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    user_id: parseInt(user_id),
+                    node_id: parseInt(node_id),
+                    hostname: hostname,
+                    os_version: os_version,
+                    cpu: parseInt(cpu),
+                    ram: parseInt(ram),
+                    disk: parseInt(disk),
+                    ip_address: ip_address || null,
+                    ip_alias: ip_alias || null,
+                    auto_suspend_enabled: auto_suspend_enabled,
+                    expiration_days: expiration_days
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                let message = `VPS created successfully: ${result.container_name}`;
+                if (auto_suspend_enabled) {
+                    message += ` (Expires in ${expiration_days} days)`;
+                }
+                showToast(message, 'success');
+                setTimeout(() => {
+                    window.location.href = "{{ url_for('admin_vps') }}";
+                }, 2000);
+            } else {
+                showToast(result.error || 'Failed to create VPS', 'danger');
+            }
+        } catch (error) {
+            console.error('Create VPS error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    });
+</script>
+{% endblock %}
