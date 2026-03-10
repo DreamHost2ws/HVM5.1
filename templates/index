@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome to {{ panel_name }}{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div style="min-height: 80vh; display: flex; align-items: center;">
+    <div style="max-width: 1200px; margin: 0 auto; width: 100%;">
+        <div class="grid grid-2" style="align-items: center;">
+            <div>
+                <h1 style="font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.2; margin-bottom: 1.5rem;">
+                    High-Performance
+                    <span style="color: var(--accent-primary);">VPS Management</span>
+                </h1>
+                <p style="font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 2rem; max-width: 500px;">
+                    Deploy and manage LXC containers with ease. Full-featured panel with real-time monitoring, port forwarding, and multi-node support.
+                </p>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-tachometer-alt"></i> Go to Dashboard
+                    </a>
+                    {% else %}
+                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-user-plus"></i> Get Started
+                    </a>
+                    <a href="{{ url_for('login') }}" class="btn btn-outline btn-lg">
+                        <i class="fas fa-sign-in-alt"></i> Sign In
+                    </a>
+                    {% endif %}
+                </div>
+
+                <!-- Stats -->
+                <div style="display: flex; gap: 2rem; margin-top: 3rem;">
+                    <div>
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--accent-primary);">100%</div>
+                        <div style="color: var(--text-muted);">Open Source</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--accent-primary);">LXC</div>
+                        <div style="color: var(--text-muted);">Container Native</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--accent-primary);">Multi-Node</div>
+                        <div style="color: var(--text-muted);">Cluster Ready</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: none; md:display: block;">
+                <!-- Dashboard Preview -->
+                <div class="card" style="padding: 2rem; transform: rotate(2deg);">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                        <div style="width: 40px; height: 40px; background-color: var(--accent-primary); border-radius: 10px;"></div>
+                        <div style="flex: 1;">
+                            <div style="height: 20px; width: 200px; background-color: var(--bg-tertiary); border-radius: 4px;"></div>
+                        </div>
+                    </div>
+                    <div class="grid grid-2" style="gap: 1rem; margin-bottom: 1.5rem;">
+                        <div style="height: 80px; background-color: var(--bg-tertiary); border-radius: var(--border-radius);"></div>
+                        <div style="height: 80px; background-color: var(--bg-tertiary); border-radius: var(--border-radius);"></div>
+                    </div>
+                    <div style="height: 200px; background-color: var(--bg-tertiary); border-radius: var(--border-radius);"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Features -->
+<div style="padding: 4rem 0;">
+    <h2 style="text-align: center; font-size: 2rem; margin-bottom: 3rem;">Powerful Features</h2>
+    
+    <div class="grid grid-3" style="gap: 2rem;">
+        <div class="card" style="text-align: center;">
+            <div class="stat-icon primary" style="margin: 0 auto 1.5rem;">
+                <i class="fas fa-bolt"></i>
+            </div>
+            <h3 style="margin-bottom: 1rem;">Lightning Fast</h3>
+            <p style="color: var(--text-muted);">Instant container deployment with LXC technology. Create and manage VPS in seconds.</p>
+        </div>
+
+        <div class="card" style="text-align: center;">
+            <div class="stat-icon success" style="margin: 0 auto 1.5rem;">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <h3 style="margin-bottom: 1rem;">Secure by Default</h3>
+            <p style="color: var(--text-muted);">Isolated containers with resource limits, suspension system, and whitelist protection.</p>
+        </div>
+
+        <div class="card" style="text-align: center;">
+            <div class="stat-icon warning" style="margin: 0 auto 1.5rem;">
+                <i class="fas fa-network-wired"></i>
+            </div>
+            <h3 style="margin-bottom: 1rem;">Port Forwarding</h3>
+            <p style="color: var(--text-muted);">Easy port mapping with quota system. Support for TCP and UDP protocols.</p>
+        </div>
+
+        <div class="card" style="text-align: center;">
+            <div class="stat-icon danger" style="margin: 0 auto 1.5rem;">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <h3 style="margin-bottom: 1rem;">Real-time Monitoring</h3>
+            <p style="color: var(--text-muted);">Live CPU, RAM, and disk usage graphs with instant alerts and notifications.</p>
+        </div>
+
+        <div class="card" style="text-align: center;">
+            <div class="stat-icon info" style="margin: 0 auto 1.5rem;">
+                <i class="fas fa-terminal"></i>
+            </div>
+            <h3 style="margin-bottom: 1rem;">Web Console</h3>
+            <p style="color: var(--text-muted);">Browser-based terminal access to your containers with SSH session generation.</p>
+        </div>
+
+        <div class="card" style="text-align: center;">
+            <div class="stat-icon primary" style="margin: 0 auto 1.5rem;">
+                <i class="fas fa-cloud"></i>
+            </div>
+            <h3 style="margin-bottom: 1rem;">Multi-Node Support</h3>
+            <p style="color: var(--text-muted);">Distribute VPS across multiple nodes with centralized management.</p>
+        </div>
+    </div>
+</div>
+
+<!-- CTA -->
+<div style="padding: 4rem 0; text-align: center;">
+    <div class="card" style="max-width: 600px; margin: 0 auto;">
+        <h2 style="font-size: 1.8rem; margin-bottom: 1rem;">Ready to get started?</h2>
+        <p style="color: var(--text-muted); margin-bottom: 2rem;">Join thousands of users managing their VPS with HVM Panel.</p>
+        {% if current_user.is_authenticated %}
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg">
+            <i class="fas fa-tachometer-alt"></i> Go to Dashboard
+        </a>
+        {% else %}
+        <div style="display: flex; gap: 1rem; justify-content: center;">
+            <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">
+                <i class="fas fa-user-plus"></i> Create Account
+            </a>
+            <a href="{{ url_for('login') }}" class="btn btn-outline btn-lg">
+                <i class="fas fa-sign-in-alt"></i> Sign In
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
