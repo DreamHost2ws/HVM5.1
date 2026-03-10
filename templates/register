@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Register - {{ panel_name }}{% endblock %}
+
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: center; min-height: 80vh;">
+    <div class="card" style="max-width: 450px; width: 100%;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <img src="{{ get_setting('header_icon', '/static/img/logo.png') }}" alt="{{ panel_name }}" style="height: 64px; margin-bottom: 1rem;">
+            <h2 style="font-size: 1.5rem;">Create Account</h2>
+            <p style="color: var(--text-muted);">Join {{ panel_name }} today</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('register') }}">
+            <div class="form-group">
+                <label class="form-label">Username</label>
+                <input type="text" name="username" class="form-control" placeholder="Choose a username" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Email Address</label>
+                <input type="email" name="email" class="form-control" placeholder="Enter your email" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input type="password" name="password" class="form-control" placeholder="Create a password" required>
+                <small style="color: var(--text-muted);">Minimum 8 characters</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Confirm Password</label>
+                <input type="password" name="confirm_password" class="form-control" placeholder="Confirm your password" required>
+            </div>
+
+            <div class="form-group">
+                <label style="display: flex; align-items: flex-start; gap: 0.5rem;">
+                    <input type="checkbox" name="terms" required style="margin-top: 0.25rem; accent-color: var(--accent-primary);">
+                    <span style="font-size: 0.875rem;">
+                        I agree to the 
+                        <a href="#" style="color: var(--accent-primary); text-decoration: none;">Terms of Service</a> 
+                        and 
+                        <a href="#" style="color: var(--accent-primary); text-decoration: none;">Privacy Policy</a>
+                    </span>
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">
+                <i class="fas fa-user-plus"></i>
+                Create Account
+            </button>
+        </form>
+
+        <div style="text-align: center; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+            <p style="color: var(--text-muted); font-size: 0.875rem;">
+                Already have an account?
+                <a href="{{ url_for('login') }}" style="color: var(--accent-primary); text-decoration: none; font-weight: 500;">
+                    Sign In
+                </a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
