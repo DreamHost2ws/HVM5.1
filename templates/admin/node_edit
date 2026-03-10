@@ -1,0 +1,523 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Node: {{ node.name }} - {{ panel_name }}{% endblock %}
+
+{% block header_title %}Edit Node: {{ node.name }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumb">
+    <a href="{{ url_for('dashboard') }}" class="breadcrumb-item">Dashboard</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <a href="{{ url_for('admin_dashboard') }}" class="breadcrumb-item">Admin</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <a href="{{ url_for('admin_nodes') }}" class="breadcrumb-item">Nodes</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <span class="breadcrumb-item active">{{ node.name }}</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Node Header -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+        <div class="stat-icon {% if node.online %}success{% else %}danger{% endif %}" style="width: 64px; height: 64px;">
+            <i class="fas fa-{% if node.online %}check-circle{% else %}exclamation-circle{% endif %}" style="font-size: 2rem;"></i>
+        </div>
+        
+        <div style="flex: 1;">
+            <h2 style="font-size: 1.5rem; margin-bottom: 0.5rem;">{{ node.name }}</h2>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <span class="badge badge-{{ 'success' if node.online else 'danger' }}">
+                    {{ node.status or 'Unknown' }}
+                </span>
+                {% if node.is_local %}
+                <span class="badge badge-info">Local Node</span>
+                {% else %}
+                <span class="badge badge-warning">Remote Node</span>
+                {% endif %}
+                <span class="badge" style="background-color: var(--bg-tertiary);">
+                    <i class="fas fa-map-marker-alt"></i> {{ node.location }}
+                </span>
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <a href="{{ url_for('admin_nodes') }}" class="btn btn-outline">
+                <i class="fas fa-arrow-left"></i> Back to Nodes
+            </a>
+            <button class="btn btn-danger" onclick="deleteNode()">
+                <i class="fas fa-trash"></i> Delete
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics -->
+<div class="grid grid-4" style="margin-bottom: 1.5rem;">
+    <div class="stat-card">
+        <div class="stat-icon primary">
+            <i class="fas fa-server"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">VPS Count</div>
+            <div class="stat-value">{{ vps_count }}</div>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon info">
+            <i class="fas fa-chart-pie"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Capacity</div>
+            <div class="stat-value">{{ node.total_vps or 0 }}</div>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon {% if node.total_vps and (vps_count / node.total_vps * 100) > 80 %}danger{% elif node.total_vps and (vps_count / node.total_vps * 100) > 60 %}warning{% else %}success{% endif %}">
+            <i class="fas fa-percentage"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Usage</div>
+            <div class="stat-value">{{ ((vps_count / node.total_vps * 100)|round(1) if node.total_vps else 0) }}%</div>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon success">
+            <i class="fas fa-network-wired"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">IP Addresses</div>
+            <div class="stat-value">{{ ip_addresses_count }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Form -->
+<form id="editNodeForm">
+    <div class="grid grid-2">
+        <!-- Basic Information -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-info-circle"></i>
+                    Basic Information
+                </h3>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Node Name <span style="color: var(--accent-danger);">*</span></label>
+                <input type="text" id="name" class="form-control" value="{{ node.name }}" required>
+                <small style="color: var(--text-muted);">Unique identifier for this node</small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Location <span style="color: var(--accent-danger);">*</span></label>
+                <input type="text" id="location" class="form-control" value="{{ node.location }}" required>
+                <small style="color: var(--text-muted);">Physical location of the node</small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">VPS Capacity</label>
+                <input type="number" id="total_vps" class="form-control" value="{{ node.total_vps or 50 }}" min="1" max="1000">
+                <small style="color: var(--text-muted);">
+                    Maximum VPS capacity (currently hosting {{ vps_count }})
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Tags (comma-separated)</label>
+                <input type="text" id="tags" class="form-control" value="{{ tags_str }}" placeholder="e.g., production, high-performance, ssd">
+                <small style="color: var(--text-muted);">Optional tags for categorization</small>
+            </div>
+        </div>
+
+        <!-- Connection & Status -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-plug"></i>
+                    Connection & Status
+                </h3>
+            </div>
+            
+            <div style="padding: 1rem; background-color: var(--bg-secondary); border-radius: var(--border-radius-sm); margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <strong>Node Type:</strong>
+                    {% if node.is_local %}
+                    <span class="badge badge-info">Local</span>
+                    {% else %}
+                    <span class="badge badge-warning">Remote</span>
+                    {% endif %}
+                </div>
+                <div style="font-size: 0.875rem; color: var(--text-muted);">
+                    {% if node.is_local %}
+                    This node uses direct LXC commands on the local server
+                    {% else %}
+                    This node is accessed remotely via API
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if not node.is_local %}
+            <div class="form-group">
+                <label class="form-label">Node URL</label>
+                <input type="text" id="url" class="form-control" value="{{ node.url or '' }}" placeholder="http://192.168.1.100:5000 or https://node.example.com">
+                <small style="color: var(--text-muted);">
+                    <strong>Supported formats:</strong><br>
+                    • HTTP with IP: <code>http://192.168.1.100:5000</code><br>
+                    • HTTPS with domain: <code>https://node.example.com</code><br>
+                    • Cloudflare Tunnel: <code>https://node.yourdomain.com</code><br>
+                    • Custom port: <code>http://node.local:8080</code>
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <button type="button" class="btn btn-outline btn-sm" onclick="testNodeConnection()">
+                    <i class="fas fa-plug"></i> Test Connection
+                </button>
+                <span id="connectionStatus" style="margin-left: 1rem;"></span>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">API Key</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="password" id="api_key" class="form-control" value="{{ node.api_key or '' }}" readonly>
+                    <button type="button" class="btn btn-outline" onclick="toggleApiKey()">
+                        <i class="fas fa-eye" id="apiKeyIcon"></i>
+                    </button>
+                    <button type="button" class="btn btn-warning" onclick="regenerateApiKey()">
+                        <i class="fas fa-sync"></i>
+                    </button>
+                </div>
+                <small style="color: var(--text-muted);">Click regenerate to create a new API key</small>
+            </div>
+            {% endif %}
+            
+            <div style="padding: 1rem; background-color: var(--bg-secondary); border-radius: var(--border-radius-sm);">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span>Current Status:</span>
+                    <span class="badge badge-{{ 'success' if node.online else 'danger' }}">
+                        {{ node.status or 'Unknown' }}
+                    </span>
+                </div>
+                <div style="font-size: 0.875rem; color: var(--text-muted);">
+                    Last checked: {{ node.last_checked|relative_time if node.last_checked else 'Never' }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Configuration -->
+    <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-network-wired"></i>
+                Network Configuration
+            </h3>
+        </div>
+        
+        <div class="grid grid-2">
+            <div class="form-group">
+                <label class="form-label">IP Addresses (comma-separated)</label>
+                <textarea id="ip_addresses" class="form-control" rows="5" placeholder="192.168.1.100, 192.168.1.101">{{ ip_addresses_str }}</textarea>
+                <small style="color: var(--text-muted);">Available IP addresses for VPS on this node</small>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">IP Aliases (comma-separated)</label>
+                <textarea id="ip_aliases" class="form-control" rows="5" placeholder="alias1, alias2, alias3">{{ ip_aliases_str }}</textarea>
+                <small style="color: var(--text-muted);">Optional aliases for IP addresses</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resource Usage -->
+    <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-chart-bar"></i>
+                Resource Usage
+            </h3>
+        </div>
+        
+        <div style="margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>VPS Capacity</span>
+                <span style="font-weight: 600;">{{ vps_count }} / {{ node.total_vps or 0 }}</span>
+            </div>
+            <div class="progress">
+                {% set usage_percent = ((vps_count / node.total_vps * 100)|round if node.total_vps else 0) %}
+                <div class="progress-bar {% if usage_percent > 80 %}danger{% elif usage_percent > 60 %}warning{% else %}success{% endif %}" 
+                     style="width: {{ usage_percent }}%;"></div>
+            </div>
+            <small style="color: var(--text-muted);">
+                {{ (node.total_vps - vps_count if node.total_vps > vps_count else 0) }} slots available
+            </small>
+        </div>
+        
+        {% if vps_count > 0 %}
+        <div style="padding: 1rem; background-color: var(--bg-secondary); border-radius: var(--border-radius-sm);">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <i class="fas fa-server"></i>
+                <strong>Hosted VPS</strong>
+            </div>
+            <a href="{{ url_for('admin_vps') }}?node_id={{ node.id }}" class="btn btn-sm btn-outline">
+                <i class="fas fa-list"></i> View {{ vps_count }} VPS on this node
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Actions -->
+    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
+        <a href="{{ url_for('admin_nodes') }}" class="btn btn-outline">
+            <i class="fas fa-times"></i> Cancel
+        </a>
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save"></i> Save Changes
+        </button>
+    </div>
+</form>
+
+<!-- Node Information -->
+<div class="card" style="margin-top: 1.5rem; background-color: var(--bg-secondary);">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-info-circle"></i>
+            Node Information
+        </h3>
+    </div>
+    
+    <table style="width: 100%;">
+        <tr>
+            <td style="padding: 0.75rem 0; color: var(--text-muted); width: 30%;">Node ID</td>
+            <td style="padding: 0.75rem 0; font-weight: 600;">{{ node.id }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 0.75rem 0; color: var(--text-muted);">Created</td>
+            <td style="padding: 0.75rem 0;">{{ node.created_at|relative_time if node.created_at else 'Unknown' }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 0.75rem 0; color: var(--text-muted);">Last Updated</td>
+            <td style="padding: 0.75rem 0;">{{ node.updated_at|relative_time if node.updated_at else 'Unknown' }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 0.75rem 0; color: var(--text-muted);">Last Health Check</td>
+            <td style="padding: 0.75rem 0;">{{ node.last_checked|relative_time if node.last_checked else 'Never' }}</td>
+        </tr>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const nodeId = {{ node.id }};
+    const isLocal = {{ 'true' if node.is_local else 'false' }};
+    
+    // Toggle API key visibility
+    function toggleApiKey() {
+        const apiKeyInput = document.getElementById('api_key');
+        const icon = document.getElementById('apiKeyIcon');
+        
+        if (apiKeyInput.type === 'password') {
+            apiKeyInput.type = 'text';
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            apiKeyInput.type = 'password';
+            icon.className = 'fas fa-eye';
+        }
+    }
+    
+    // Test node connection
+    async function testNodeConnection() {
+        const url = document.getElementById('url').value.trim();
+        const statusEl = document.getElementById('connectionStatus');
+        
+        if (!url) {
+            statusEl.innerHTML = '<span style="color: var(--accent-warning);"><i class="fas fa-exclamation-triangle"></i> Please enter a URL</span>';
+            return;
+        }
+        
+        statusEl.innerHTML = '<span style="color: var(--accent-info);"><i class="fas fa-spinner fa-spin"></i> Testing connection...</span>';
+        
+        try {
+            const response = await fetch('/admin/nodes/test-connection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url: url })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                statusEl.innerHTML = '<span style="color: var(--accent-success);"><i class="fas fa-check-circle"></i> Connection successful!</span>';
+                if (result.node_info) {
+                    statusEl.innerHTML += `<br><small style="color: var(--text-muted);">Node: ${result.node_info.hostname || 'Unknown'} | Version: ${result.node_info.version || 'Unknown'}</small>`;
+                }
+            } else {
+                statusEl.innerHTML = '<span style="color: var(--accent-danger);"><i class="fas fa-times-circle"></i> ' + (result.error || 'Connection failed') + '</span>';
+            }
+        } catch (error) {
+            statusEl.innerHTML = '<span style="color: var(--accent-danger);"><i class="fas fa-times-circle"></i> Network error: ' + error.message + '</span>';
+        }
+    }
+    
+    // Regenerate API key
+    async function regenerateApiKey() {
+        if (!confirm('Regenerate API key for this node?\n\nThe old API key will be invalidated immediately. Make sure to update the remote node configuration with the new key.')) {
+            return;
+        }
+        
+        showLoading();
+        
+        try {
+            const response = await fetch(`/admin/nodes/${nodeId}/regenerate-key`, {
+                method: 'POST'
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                document.getElementById('api_key').value = result.api_key;
+                showToast('API key regenerated successfully', 'success');
+                
+                // Show the new key
+                document.getElementById('api_key').type = 'text';
+                document.getElementById('apiKeyIcon').className = 'fas fa-eye-slash';
+                
+                // Prompt to copy
+                setTimeout(() => {
+                    if (confirm('Copy the new API key to clipboard?')) {
+                        navigator.clipboard.writeText(result.api_key);
+                        showToast('API key copied to clipboard', 'success');
+                    }
+                }, 1000);
+            } else {
+                showToast(result.error || 'Failed to regenerate API key', 'danger');
+            }
+        } catch (error) {
+            console.error('Regenerate API key error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+    
+    // Form submission
+    document.getElementById('editNodeForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const name = document.getElementById('name').value.trim();
+        const location = document.getElementById('location').value.trim();
+        const total_vps = parseInt(document.getElementById('total_vps').value);
+        const tags = document.getElementById('tags').value.trim();
+        const ip_addresses = document.getElementById('ip_addresses').value.trim();
+        const ip_aliases = document.getElementById('ip_aliases').value.trim();
+        
+        // Validation
+        if (!name || !location) {
+            showToast('Please fill in all required fields', 'warning');
+            return;
+        }
+        
+        const currentVpsCount = {{ vps_count }};
+        if (total_vps < currentVpsCount) {
+            showToast(`Capacity cannot be less than current VPS count (${currentVpsCount})`, 'warning');
+            return;
+        }
+        
+        if (total_vps < 1 || total_vps > 1000) {
+            showToast('VPS capacity must be between 1 and 1000', 'warning');
+            return;
+        }
+        
+        const data = {
+            name: name,
+            location: location,
+            total_vps: total_vps,
+            tags: tags,
+            ip_addresses: ip_addresses,
+            ip_aliases: ip_aliases
+        };
+        
+        // Add URL for remote nodes
+        if (!isLocal) {
+            const url = document.getElementById('url').value.trim();
+            if (url) {
+                data.url = url;
+            }
+        }
+        
+        showLoading();
+        
+        try {
+            const response = await fetch(`/admin/nodes/${nodeId}/edit`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showToast('Node updated successfully', 'success');
+                setTimeout(() => {
+                    window.location.href = "{{ url_for('admin_nodes') }}";
+                }, 1500);
+            } else {
+                showToast(result.error || 'Failed to update node', 'danger');
+            }
+        } catch (error) {
+            console.error('Update node error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    });
+    
+    // Delete node
+    async function deleteNode() {
+        const vpsCount = {{ vps_count }};
+        
+        if (vpsCount > 0) {
+            showToast(`Cannot delete node with ${vpsCount} active VPS. Please migrate or delete all VPS first.`, 'danger');
+            return;
+        }
+        
+        if (!confirm('Are you sure you want to delete node "{{ node.name }}"?\n\nThis action cannot be undone!')) {
+            return;
+        }
+        
+        showLoading();
+        
+        try {
+            const response = await fetch(`/admin/nodes/${nodeId}/delete`, {
+                method: 'POST'
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showToast('Node deleted successfully', 'success');
+                setTimeout(() => {
+                    window.location.href = "{{ url_for('admin_nodes') }}";
+                }, 1500);
+            } else {
+                showToast(result.error || 'Failed to delete node', 'danger');
+            }
+        } catch (error) {
+            console.error('Delete node error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+</script>
+{% endblock %}
