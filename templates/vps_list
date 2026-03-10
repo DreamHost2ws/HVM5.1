@@ -1,0 +1,490 @@
+{% extends "base.html" %}
+
+{% block title %}My VPS - {{ panel_name }}{% endblock %}
+
+{% block header_title %}My Virtual Private Servers{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumb">
+    <a href="{{ url_for('dashboard') }}" class="breadcrumb-item">Dashboard</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <span class="breadcrumb-item active">My VPS</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Header Actions -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+    <div>
+        <h2 style="font-size: 1.5rem;">Your Virtual Private Servers</h2>
+        <p style="color: var(--text-muted);">Manage and monitor all your VPS instances.</p>
+    </div>
+    {% if current_user.is_admin %}
+    <a href="{{ url_for('admin_vps_create') }}" class="btn btn-primary">
+        <i class="fas fa-plus"></i>
+        <span>Create New VPS</span>
+    </a>
+    {% endif %}
+</div>
+
+<!-- Quick Stats -->
+<div class="grid grid-4" style="margin-bottom: 2rem;">
+    <div class="stat-card">
+        <div class="stat-icon primary">
+            <i class="fas fa-server"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Total VPS</div>
+            <div class="stat-value">{{ vps_list|length }}</div>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon success">
+            <i class="fas fa-play"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Running</div>
+            <div class="stat-value">{{ vps_list|selectattr('live_status', 'equalto', 'running')|list|length }}</div>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon warning">
+            <i class="fas fa-pause"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Stopped</div>
+            <div class="stat-value">{{ vps_list|selectattr('live_status', 'equalto', 'stopped')|list|length }}</div>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon danger">
+            <i class="fas fa-ban"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-label">Suspended</div>
+            <div class="stat-value">{{ vps_list|selectattr('suspended', 'equalto', true)|list|length }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Expiring VPS Alert -->
+{% set expiring_vps = [] %}
+{% for vps in vps_list %}
+    {% if vps.auto_suspend_enabled and vps.expires_at %}
+        {% set expires_dt = vps.expires_at|parse_datetime %}
+        {% if expires_dt %}
+            {% set current_time = now() %}
+            {% set time_diff = (expires_dt - current_time).total_seconds() %}
+            {% set days_left = (time_diff / 86400)|int %}
+            {% if days_left <= 7 %}
+                {% set _ = expiring_vps.append(vps) %}
+            {% endif %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
+
+{% if expiring_vps|length > 0 %}
+<div class="alert alert-warning" style="margin-bottom: 1.5rem;">
+    <i class="fas fa-clock"></i>
+    <div style="flex: 1;">
+        <strong>VPS Expiring Soon!</strong>
+        <p style="margin: 0.25rem 0 0 0; font-size: 0.875rem;">
+            You have {{ expiring_vps|length }} VPS expiring in the next 7 days. Contact admin for renewal.
+        </p>
+    </div>
+    <button class="btn btn-sm btn-warning" onclick="showExpiringVPS()" style="margin-left: 1rem;">
+        <i class="fas fa-eye"></i> View
+    </button>
+</div>
+{% endif %}
+
+<!-- Search and Filter (Mobile Friendly) -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 200px;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <input type="text" class="form-control" id="searchVPS" placeholder="Search by name or IP...">
+            </div>
+        </div>
+        <div style="width: 150px;">
+            <select class="form-control" id="statusFilter">
+                <option value="all">All Status</option>
+                <option value="running">Running</option>
+                <option value="stopped">Stopped</option>
+                <option value="suspended">Suspended</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- VPS Cards (Mobile Friendly) -->
+<div class="vps-list" id="vpsList">
+    {% if vps_list %}
+        {% for vps in vps_list %}
+        <div class="card vps-item" data-id="{{ vps.id }}" data-name="{{ vps.hostname or vps.container_name }}" data-status="{% if vps.suspended %}suspended{% else %}{{ vps.live_status }}{% endif %}" style="margin-bottom: 1rem; padding: 1.25rem;">
+            <!-- Card Header -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div class="user-avatar" style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));">
+                        <i class="fas fa-server" style="font-size: 1.5rem;"></i>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem;">{{ vps.hostname or vps.container_name }}</h3>
+                        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <span class="badge badge-info">ID: {{ vps.id }}</span>
+                            <span class="badge" style="background-color: var(--bg-tertiary);">
+                                <i class="fas fa-calendar"></i> {{ vps.created_at|relative_time }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="vps-status" data-id="{{ vps.id }}" data-status="{% if vps.suspended %}suspended{% else %}{{ vps.live_status }}{% endif %}">
+                    <div class="status-indicator">
+                        <span class="status-dot {% if vps.suspended %}suspended{% elif vps.live_status == 'running' %}running{% else %}stopped{% endif %}"></span>
+                        <span class="status-text">
+                            {% if vps.suspended %}Suspended{% elif vps.live_status == 'running' %}Running{% else %}Stopped{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resources -->
+            <div style="margin-bottom: 1rem;">
+                <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">CPU</div>
+                        <div style="font-weight: 600;"><i class="fas fa-microchip" style="color: var(--accent-primary); width: 20px;"></i> {{ vps.cpu }} Cores</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">RAM</div>
+                        <div style="font-weight: 600;"><i class="fas fa-memory" style="color: var(--accent-success); width: 20px;"></i> {{ vps.ram }}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">Storage</div>
+                        <div style="font-weight: 600;"><i class="fas fa-hdd" style="color: var(--accent-warning); width: 20px;"></i> {{ vps.storage }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- IP Address -->
+            <div style="margin-bottom: 1rem; padding: 0.75rem; background-color: var(--bg-tertiary); border-radius: var(--border-radius-sm); font-family: monospace;">
+                {% if vps.ip_alias %}
+                <i class="fas fa-globe" style="color: var(--accent-primary); margin-right: 0.5rem;"></i> {{ vps.ip_alias }}
+                <span class="badge badge-info" style="margin-left: 0.5rem;">Alias</span>
+                {% elif vps.ip_address %}
+                <i class="fas fa-globe" style="color: var(--accent-primary); margin-right: 0.5rem;"></i> {{ vps.ip_address }}
+                {% else %}
+                <i class="fas fa-globe" style="color: var(--text-muted); margin-right: 0.5rem;"></i> <span class="text-muted">No IP assigned</span>
+                {% endif %}
+            </div>
+
+            <!-- Expiration Info -->
+            {% if vps.auto_suspend_enabled and vps.expires_at %}
+            {% set expires_dt = vps.expires_at|parse_datetime %}
+            {% if expires_dt %}
+                {% set current_time = now() %}
+                {% set time_diff = (expires_dt - current_time).total_seconds() %}
+                {% set days_left = (time_diff / 86400)|int %}
+            <div style="margin-bottom: 1rem; padding: 0.75rem; background-color: var(--bg-tertiary); border-radius: var(--border-radius-sm); border-left: 3px solid {% if days_left <= 0 %}var(--accent-danger){% elif days_left <= 3 %}var(--accent-warning){% else %}var(--accent-info){% endif %};">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-clock" style="color: {% if days_left <= 0 %}var(--accent-danger){% elif days_left <= 3 %}var(--accent-warning){% else %}var(--accent-info){% endif %};"></i>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Expiration</div>
+                            <div style="font-weight: 600; font-size: 0.875rem;">
+                                {% set hours_left = (time_diff / 3600)|int %}
+                                
+                                {% if days_left < 0 %}
+                                    <span style="color: var(--accent-danger);">Expired</span>
+                                {% elif days_left == 0 %}
+                                    <span style="color: var(--accent-danger);">{{ hours_left }}h remaining</span>
+                                {% elif days_left <= 3 %}
+                                    <span style="color: var(--accent-warning);">{{ days_left }} days remaining</span>
+                                {% else %}
+                                    <span style="color: var(--accent-info);">{{ days_left }} days remaining</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        {% if expires_dt %}
+                            {% if days_left < 0 %}
+                                <span class="badge badge-danger"><i class="fas fa-exclamation-triangle"></i> Expired</span>
+                            {% elif days_left <= 1 %}
+                                <span class="badge badge-danger"><i class="fas fa-exclamation-triangle"></i> Critical</span>
+                            {% elif days_left <= 3 %}
+                                <span class="badge badge-warning"><i class="fas fa-clock"></i> Expiring Soon</span>
+                            {% elif days_left <= 7 %}
+                                <span class="badge badge-info"><i class="fas fa-clock"></i> {{ days_left }}d left</span>
+                            {% else %}
+                                <span class="badge badge-success"><i class="fas fa-check"></i> {{ days_left }}d left</span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
+                    {% if expires_dt %}
+                        Expires: {{ expires_dt.strftime('%Y-%m-%d %H:%M') }}
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+
+            <!-- Live Stats (if running) -->
+            {% if vps.live_status == 'running' and not vps.suspended %}
+            <div style="margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    <div style="flex: 1;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                            <span style="font-size: 0.75rem;">CPU</span>
+                            <span class="vps-cpu" data-id="{{ vps.id }}" style="font-size: 0.75rem;">{{ vps.live_cpu|default(0)|round(1) }}%</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar {% if vps.live_cpu|default(0) > 80 %}danger{% elif vps.live_cpu|default(0) > 60 %}warning{% else %}success{% endif %}" 
+                                 style="width: {{ vps.live_cpu|default(0) }}%;"></div>
+                        </div>
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                            <span style="font-size: 0.75rem;">RAM</span>
+                            <span class="vps-ram" data-id="{{ vps.id }}" style="font-size: 0.75rem;">{{ vps.live_ram.pct|default(0)|round(1) }}%</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar {% if vps.live_ram.pct|default(0) > 80 %}danger{% elif vps.live_ram.pct|default(0) > 60 %}warning{% else %}success{% endif %}" 
+                                 style="width: {{ vps.live_ram.pct|default(0) }}%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Actions -->
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <a href="{{ url_for('vps_detail', vps_id=vps.id) }}" class="btn btn-primary">
+                    <i class="fas fa-cog"></i>
+                    <span>Manage</span>
+                </a>
+                
+                {% if vps.live_status == 'running' and not vps.suspended %}
+                <a href="{{ url_for('vps_console', vps_id=vps.id) }}" class="btn btn-outline">
+                    <i class="fas fa-terminal"></i>
+                    <span>Console</span>
+                </a>
+                {% endif %}
+                
+                <button class="btn btn-outline" onclick="controlVPS({{ vps.id }}, '{% if vps.live_status == 'running' %}stop{% else %}start{% endif %}')">
+                    <i class="fas fa-{% if vps.live_status == 'running' %}stop{% else %}play{% endif %}"></i>
+                    <span>{% if vps.live_status == 'running' %}Stop{% else %}Start{% endif %}</span>
+                </button>
+                
+                {% if vps.live_status == 'running' and not vps.suspended %}
+                <button class="btn btn-outline" onclick="controlVPS({{ vps.id }}, 'restart')">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Restart</span>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <i class="fas fa-server"></i>
+        <h3>No Virtual Private Servers</h3>
+        <p>You haven't created any VPS instances yet.</p>
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('admin_vps_create') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Create Your First VPS
+        </a>
+        {% else %}
+        <p class="text-muted">Contact an administrator to create a VPS for you.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Show expiring VPS modal
+    function showExpiringVPS() {
+        const expiringVPS = [];
+        
+        {% for vps in vps_list %}
+        {% if vps.auto_suspend_enabled and vps.expires_at %}
+        {% set expires_dt = vps.expires_at|parse_datetime %}
+        {% if expires_dt %}
+        {% set current_time = now() %}
+        {% set time_diff = (expires_dt - current_time).total_seconds() %}
+        {% set days_left = (time_diff / 86400)|int %}
+        {% if days_left <= 7 %}
+        expiringVPS.push({
+            id: {{ vps.id }},
+            name: '{{ vps.hostname or vps.container_name }}',
+            container: '{{ vps.container_name }}',
+            expires_at: '{{ expires_dt.strftime("%Y-%m-%d %H:%M") }}',
+            days_left: {{ days_left }},
+            hours_left: {{ (time_diff / 3600)|int }},
+            is_expired: {{ 'true' if days_left < 0 else 'false' }},
+            suspended: {{ 'true' if vps.suspended else 'false' }}
+        });
+        {% endif %}
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+        
+        if (expiringVPS.length === 0) {
+            showToast('No VPS expiring soon', 'info');
+            return;
+        }
+        
+        // Sort by days left (ascending)
+        expiringVPS.sort((a, b) => a.days_left - b.days_left);
+        
+        let html = `
+            <div style="max-height: 500px; overflow-y: auto;">
+                <h3 style="margin-bottom: 1rem;">Your Expiring VPS (${expiringVPS.length})</h3>
+                <p style="color: var(--text-muted); margin-bottom: 1rem;">Contact an administrator to renew these VPS.</p>
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+        `;
+        
+        expiringVPS.forEach(vps => {
+            const statusClass = vps.is_expired ? 'badge-danger' : (vps.days_left <= 3 ? 'badge-warning' : 'badge-info');
+            const statusText = vps.is_expired ? 'EXPIRED' : (vps.days_left === 0 ? `${vps.hours_left}h left` : `${vps.days_left}d left`);
+            const borderColor = vps.is_expired ? 'var(--accent-danger)' : (vps.days_left <= 3 ? 'var(--accent-warning)' : 'var(--accent-info)');
+            
+            html += `
+                <div style="padding: 1rem; background-color: var(--bg-tertiary); border-radius: var(--border-radius-sm); border-left: 3px solid ${borderColor};">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 0.25rem;">${vps.name}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">${vps.container}</div>
+                        </div>
+                        <span class="badge ${statusClass}">${statusText}</span>
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">
+                        <i class="fas fa-clock"></i> Expires: ${vps.expires_at}
+                    </div>
+                    ${vps.suspended ? '<div style="margin-top: 0.5rem;"><span class="badge badge-danger">Suspended</span></div>' : ''}
+                    <div style="margin-top: 0.75rem;">
+                        <a href="/vps/${vps.id}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-cog"></i> Manage
+                        </a>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+        
+        // Create modal
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 600px;">
+                ${html}
+                <div style="margin-top: 1.5rem; text-align: right;">
+                    <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">Close</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    // Search functionality
+    document.getElementById('searchVPS')?.addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        const statusFilter = document.getElementById('statusFilter').value;
+        
+        document.querySelectorAll('.vps-item').forEach(item => {
+            const name = item.dataset.name.toLowerCase();
+            const status = item.dataset.status;
+            const matchesSearch = name.includes(searchTerm);
+            const matchesStatus = statusFilter === 'all' || status === statusFilter;
+            
+            item.style.display = matchesSearch && matchesStatus ? 'block' : 'none';
+        });
+    });
+    
+    // Status filter
+    document.getElementById('statusFilter')?.addEventListener('change', function(e) {
+        const searchTerm = document.getElementById('searchVPS').value.toLowerCase();
+        const statusFilter = e.target.value;
+        
+        document.querySelectorAll('.vps-item').forEach(item => {
+            const name = item.dataset.name.toLowerCase();
+            const status = item.dataset.status;
+            const matchesSearch = name.includes(searchTerm);
+            const matchesStatus = statusFilter === 'all' || status === statusFilter;
+            
+            item.style.display = matchesSearch && matchesStatus ? 'block' : 'none';
+        });
+    });
+
+    // VPS Control
+    async function controlVPS(vpsId, action) {
+        if (!confirm(`Are you sure you want to ${action} this VPS?`)) {
+            return;
+        }
+        
+        showLoading();
+        
+        try {
+            const response = await fetch(`/vps/${vpsId}/control/${action}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showToast(`VPS ${action}ed successfully`, 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(result.error || `Failed to ${action} VPS`, 'danger');
+            }
+        } catch (error) {
+            console.error('Control error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Auto refresh stats if page is visible
+    if (document.querySelector('.vps-item')) {
+        let refreshInterval = setInterval(() => {
+            if (!document.hidden) {
+                refreshStats();
+            }
+        }, 10000);
+        
+        async function refreshStats() {
+            const vpsItems = document.querySelectorAll('.vps-item[data-status="running"]');
+            
+            for (const item of vpsItems) {
+                const vpsId = item.dataset.id;
+                
+                try {
+                    const response = await fetch(`/vps/${vpsId}/stats`);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        updateVPSStats(vpsId, data.stats);
+                    }
+                } catch (error) {
+                    console.error('Stats refresh error:', error);
+                }
+            }
+        }
+    }
+</script>
+{% endblock %}
