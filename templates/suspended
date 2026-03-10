@@ -1,0 +1,11 @@
+<div class="text-center mt-20">
+    <h1 class="text-4xl font-bold text-red-500">VPS Suspended</h1>
+
+    <p class="mt-4 text-gray-400">
+        This VPS has been suspended by an administrator.
+    </p>
+
+    <p class="mt-2 text-yellow-400">
+        Reason: {{ vps.suspended_reason or "No reason provided" }}
+    </p>
+</div>
