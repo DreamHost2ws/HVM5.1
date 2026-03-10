@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}OS Icons Management - {{ panel_name }}{% endblock %}
+
+{% block header_title %}OS Icons Management{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumb">
+    <a href="{{ url_for('dashboard') }}" class="breadcrumb-item">Dashboard</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <a href="{{ url_for('admin_dashboard') }}" class="breadcrumb-item">Admin</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <span class="breadcrumb-item active">OS Icons</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+    <div>
+        <h2 style="font-size: 1.5rem; margin-bottom: 0.5rem;">OS Icons Management</h2>
+        <p style="color: var(--text-muted); margin: 0;">Upload and manage custom icons for operating systems</p>
+    </div>
+    <button class="btn btn-primary" onclick="showUploadModal()">
+        <i class="fas fa-upload"></i> Upload Icon
+    </button>
+</div>
+
+<!-- OS Icons Grid -->
+<div class="grid grid-4" style="margin-bottom: 2rem;">
+    {% for os in os_options %}
+    <div class="card" style="text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 1rem;" id="icon-{{ os.value|replace(':', '-') }}">
+            {% set icon = icons|selectattr('os_name', 'equalto', os.value)|first %}
+            {% if icon %}
+            <img src="{{ icon.icon_path }}" alt="{{ os.label }}" style="height: 64px; width: auto;">
+            {% else %}
+            <i class="{{ os.icon|default('fab fa-linux') }}" style="color: var(--text-muted);"></i>
+            {% endif %}
+        </div>
+        <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">{{ os.label }}</h3>
+        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;">{{ os.value }}</p>
+        <div>
+            {% if icon %}
+            <button class="btn btn-sm btn-danger" onclick="deleteIcon('{{ os.value }}')">
+                <i class="fas fa-trash"></i> Remove
+            </button>
+            {% else %}
+            <button class="btn btn-sm btn-primary" onclick="uploadForOS('{{ os.value }}')">
+                <i class="fas fa-upload"></i> Add Icon
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Upload Modal -->
+<div class="modal" id="uploadModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Upload OS Icon</h3>
+            <button class="modal-close" onclick="closeUploadModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <form id="uploadForm" onsubmit="uploadIcon(event)" enctype="multipart/form-data">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Operating System</label>
+                    <select class="form-control" name="os_name" id="osSelect" required>
+                        <option value="">Select OS</option>
+                        {% for os in os_options %}
+                        <option value="{{ os.value }}">{{ os.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Icon Image</label>
+                    <div style="border: 2px dashed var(--border-color); border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer;" 
+                         onclick="document.getElementById('iconFile').click()" id="dropZone">
+                        <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: var(--text-muted);"></i>
+                        <p style="margin-top: 1rem; margin-bottom: 0.5rem;">Click to upload or drag and drop</p>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">PNG, JPG, GIF, SVG up to 5MB</p>
+                    </div>
+                    <input type="file" id="iconFile" name="icon" accept="image/*" style="display: none;" onchange="previewIcon(this)" required>
+                    <div id="imagePreview" style="display: none; margin-top: 1rem; text-align: center;">
+                        <img src="" alt="Preview" style="max-height: 100px; border-radius: 8px;">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeUploadModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="uploadBtn">
+                    <i class="fas fa-upload"></i> Upload Icon
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentOS = null;
+    
+    function showUploadModal() {
+        const modal = document.getElementById('uploadModal');
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+        document.getElementById('osSelect').value = '';
+        document.getElementById('imagePreview').style.display = 'none';
+    }
+    
+    function closeUploadModal() {
+        const modal = document.getElementById('uploadModal');
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+        document.getElementById('uploadForm').reset();
+        document.getElementById('imagePreview').style.display = 'none';
+    }
+    
+    function uploadForOS(osValue) {
+        const modal = document.getElementById('uploadModal');
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+        document.getElementById('osSelect').value = osValue;
+    }
+    
+    function previewIcon(input) {
+        const preview = document.getElementById('imagePreview');
+        const previewImg = preview.querySelector('img');
+        
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                previewImg.src = e.target.result;
+                preview.style.display = 'block';
+            }
+            
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+    
+    // Drag and drop functionality
+    const dropZone = document.getElementById('dropZone');
+    
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'var(--accent-primary)';
+        dropZone.style.background = 'var(--bg-hover)';
+    });
+    
+    dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'var(--border-color)';
+        dropZone.style.background = 'transparent';
+    });
+    
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'var(--border-color)';
+        dropZone.style.background = 'transparent';
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            document.getElementById('iconFile').files = files;
+            previewIcon(document.getElementById('iconFile'));
+        }
+    });
+    
+    async function uploadIcon(event) {
+        event.preventDefault();
+        
+        const form = document.getElementById('uploadForm');
+        const formData = new FormData(form);
+        
+        const uploadBtn = document.getElementById('uploadBtn');
+        const originalText = uploadBtn.innerHTML;
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+        
+        try {
+            const response = await fetch('{{ url_for("upload_os_icon") }}', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('Icon uploaded successfully', 'success');
+                closeUploadModal();
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast(data.error || 'Upload failed', 'danger');
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = originalText;
+            }
+        } catch (error) {
+            showToast('Upload failed: ' + error.message, 'danger');
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = originalText;
+        }
+    }
+    
+    async function deleteIcon(osName) {
+        if (!confirm(`Are you sure you want to remove the icon for this OS?`)) return;
+        
+        showLoading();
+        
+        try {
+            const response = await fetch(`/os-icons/${osName}/delete`, {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('Icon removed successfully', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast(data.error || 'Failed to remove icon', 'danger');
+            }
+        } catch (error) {
+            showToast('Failed to remove icon: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+</script>
+{% endblock %}
