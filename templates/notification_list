@@ -1,0 +1,41 @@
+{% if (notifs if notifs is defined) or (success_notifs if success_notifs is defined) or (warning_notifs if warning_notifs is defined) or (danger_notifs if danger_notifs is defined) %}
+{% set display_notifs = notifs if notifs is defined else (success_notifs if success_notifs is defined else (warning_notifs if warning_notifs is defined else danger_notifs)) %}
+<div class="list-group list-group-flush bg-transparent">
+    {% for notif in display_notifs %}
+    <div class="list-group-item bg-transparent notification-item" data-aos="fade-up" data-aos-delay="{{ loop.index * 50 }}" data-notification-id="{{ notif.id }}">
+        <div class="d-flex">
+            <div class="me-3">
+                <div class="stat-icon" style="width: 40px; height: 40px; background: linear-gradient(135deg, {% if notif.type == 'success' %}#198754{% elif notif.type == 'danger' %}#dc3545{% elif notif.type == 'warning' %}#ffc107{% else %}#0d6efd{% endif %} 0%, rgba(13, 110, 253, 0.2) 100%);">
+                    <i class="fas fa-{{ 'check-circle' if notif.type == 'success' else 'exclamation-circle' if notif.type == 'danger' else 'exclamation-triangle' if notif.type == 'warning' else 'info-circle' }}"></i>
+                </div>
+            </div>
+            <div class="flex-grow-1">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="mb-1 {% if not notif.read %}fw-bold{% endif %}">{{ notif.title }}</h6>
+                        <p class="mb-2">{{ notif.message }}</p>
+                        <small class="text-muted">{{ notif.created_at|relative_time }}</small>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        {% if not notif.read %}
+                        <button class="btn btn-primary" onclick="markRead({{ notif.id }})">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        {% endif %}
+                        <button class="btn btn-danger" onclick="deleteNotification({{ notif.id }})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-bell-slash fa-4x text-muted mb-3"></i>
+    <h5>No Notifications</h5>
+    <p class="text-muted">No notifications in this category.</p>
+</div>
+{% endif %}
