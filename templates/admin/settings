@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - {{ panel_name }}{% endblock %}
+
+{% block header_title %}Panel Settings{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumb">
+    <a href="{{ url_for('dashboard') }}" class="breadcrumb-item">Dashboard</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <a href="{{ url_for('admin_dashboard') }}" class="breadcrumb-item">Admin</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <span class="breadcrumb-item active">Settings</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('admin_settings') }}">
+    <!-- General Settings -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-globe"></i>
+                General Settings
+            </h3>
+        </div>
+
+        <div class="grid grid-2">
+            <div class="form-group">
+                <label class="form-label">Site Name</label>
+                <input type="text" name="site_name" class="form-control" value="{{ settings.site_name }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Site Description</label>
+                <input type="text" name="site_description" class="form-control" value="{{ settings.site_description }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Footer Text</label>
+                <input type="text" name="footer_text" class="form-control" value="{{ settings.footer_text }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Timezone</label>
+                <select name="timezone" class="form-control">
+                    <option value="UTC" {% if settings.timezone == 'UTC' %}selected{% endif %}>UTC</option>
+                    <option value="America/New_York" {% if settings.timezone == 'America/New_York' %}selected{% endif %}>US/Eastern</option>
+                    <option value="America/Chicago" {% if settings.timezone == 'America/Chicago' %}selected{% endif %}>US/Central</option>
+                    <option value="America/Denver" {% if settings.timezone == 'America/Denver' %}selected{% endif %}>US/Mountain</option>
+                    <option value="America/Los_Angeles" {% if settings.timezone == 'America/Los_Angeles' %}selected{% endif %}>US/Pacific</option>
+                    <option value="Europe/London" {% if settings.timezone == 'Europe/London' %}selected{% endif %}>Europe/London</option>
+                    <option value="Europe/Paris" {% if settings.timezone == 'Europe/Paris' %}selected{% endif %}>Europe/Paris</option>
+                    <option value="Asia/Tokyo" {% if settings.timezone == 'Asia/Tokyo' %}selected{% endif %}>Asia/Tokyo</option>
+                    <option value="Asia/Shanghai" {% if settings.timezone == 'Asia/Shanghai' %}selected{% endif %}>Asia/Shanghai</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-checkbox" style="display: flex; align-items: center; gap: 0.5rem;">
+                <input type="checkbox" name="registration_enabled" {% if settings.registration_enabled == '1' %}checked{% endif %}>
+                <span>Enable user registration</span>
+            </label>
+        </div>
+    </div>
+
+    <!-- Branding Settings -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-paint-brush"></i>
+                Branding
+            </h3>
+        </div>
+
+        <div class="grid grid-2">
+            <div class="form-group">
+                <label class="form-label">Header Icon URL</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" name="header_icon" class="form-control" value="{{ settings.header_icon }}" id="headerIcon">
+                    <button type="button" class="btn btn-outline" onclick="uploadIcon('header')">
+                        <i class="fas fa-upload"></i>
+                    </button>
+                </div>
+                {% if settings.header_icon %}
+                <div style="margin-top: 0.5rem;">
+                    <img src="{{ settings.header_icon }}" alt="Header Icon" style="height: 32px;">
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Favicon URL</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" name="favicon" class="form-control" value="{{ settings.favicon }}" id="favicon">
+                    <button type="button" class="btn btn-outline" onclick="uploadIcon('favicon')">
+                        <i class="fas fa-upload"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resource Limits -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-chart-line"></i>
+                Resource Limits
+            </h3>
+        </div>
+
+        <div class="grid grid-2">
+            <div class="form-group">
+                <label class="form-label">CPU Threshold (%)</label>
+                <input type="number" name="cpu_threshold" class="form-control" value="{{ settings.cpu_threshold }}" min="1" max="100">
+                <small>VPS will be suspended above this CPU usage</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">RAM Threshold (%)</label>
+                <input type="number" name="ram_threshold" class="form-control" value="{{ settings.ram_threshold }}" min="1" max="100">
+                <small>VPS will be suspended above this RAM usage</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Default Port Quota</label>
+                <input type="number" name="default_port_quota" class="form-control" value="{{ settings.default_port_quota }}" min="0" max="1000">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Max VPS Per User</label>
+                <input type="number" name="max_vps_per_user" class="form-control" value="{{ settings.max_vps_per_user }}" min="1" max="1000">
+            </div>
+        </div>
+    </div>
+
+    <!-- Backup Settings -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-database"></i>
+                Backup Settings
+            </h3>
+        </div>
+
+        <div class="form-group">
+            <label class="form-checkbox" style="display: flex; align-items: center; gap: 0.5rem;">
+                <input type="checkbox" name="backup_enabled" {% if settings.backup_enabled == '1' %}checked{% endif %}>
+                <span>Enable automatic backups</span>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Backup Retention (days)</label>
+            <input type="number" name="backup_retention" class="form-control" value="{{ settings.backup_retention }}" min="1" max="365">
+        </div>
+    </div>
+
+    <!-- Maintenance Mode -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-tools"></i>
+                Maintenance
+            </h3>
+        </div>
+
+        <div class="form-group">
+            <label class="form-checkbox" style="display: flex; align-items: center; gap: 0.5rem;">
+                <input type="checkbox" name="maintenance_mode" {% if settings.maintenance_mode == '1' %}checked{% endif %}>
+                <span>Enable maintenance mode</span>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Maintenance Message</label>
+            <textarea name="maintenance_message" class="form-control" rows="3">{{ settings.maintenance_message }}</textarea>
+        </div>
+    </div>
+
+    <!-- Submit -->
+    <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save"></i> Save Settings
+        </button>
+    </div>
+</form>
+
+<!-- Hidden file inputs -->
+<input type="file" id="headerIconUpload" accept="image/*" style="display: none;" onchange="uploadFile(this, 'header')">
+<input type="file" id="faviconUpload" accept=".ico,.png" style="display: none;" onchange="uploadFile(this, 'favicon')">
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Upload icon
+    function uploadIcon(type) {
+        if (type === 'header') {
+            document.getElementById('headerIconUpload').click();
+        } else {
+            document.getElementById('faviconUpload').click();
+        }
+    }
+
+    // Upload file
+    async function uploadFile(input, type) {
+        if (!input.files || !input.files[0]) return;
+
+        const file = input.files[0];
+        const formData = new FormData();
+        formData.append('icon', file);
+
+        showLoading();
+
+        try {
+            const url = type === 'header' ? '/admin/settings/upload-header-icon' : '/admin/settings/upload-favicon';
+            
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                if (type === 'header') {
+                    document.getElementById('headerIcon').value = result.path;
+                } else {
+                    document.getElementById('favicon').value = result.path;
+                }
+                showToast('Icon uploaded successfully', 'success');
+            } else {
+                showToast(result.error || 'Upload failed', 'danger');
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+</script>
+{% endblock %}
