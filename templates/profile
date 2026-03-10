@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - {{ panel_name }}{% endblock %}
+
+{% block header_title %}My Profile{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumb">
+    <a href="{{ url_for('dashboard') }}" class="breadcrumb-item">Dashboard</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <span class="breadcrumb-item active">Profile</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-3" style="margin-bottom: 2rem;">
+    <!-- Profile Card -->
+    <div class="card" style="grid-column: span 1;">
+        <div style="text-align: center;">
+            <div style="position: relative; width: 120px; height: 120px; margin: 0 auto 1rem;">
+                <div class="user-avatar" style="width: 120px; height: 120px; font-size: 3rem;">
+                    {% if current_user.profile_picture %}
+                    <img src="{{ current_user.profile_picture }}" alt="{{ current_user.username }}" style="width: 100%; height: 100%; object-fit: cover;">
+                    {% else %}
+                    <span>{{ current_user.username[:1].upper() }}</span>
+                    {% endif %}
+                </div>
+                <button class="btn btn-sm btn-primary" onclick="document.getElementById('profilePicInput').click()" style="position: absolute; bottom: 0; right: 0; border-radius: 50%; width: 36px; height: 36px; padding: 0;">
+                    <i class="fas fa-camera"></i>
+                </button>
+                <input type="file" id="profilePicInput" accept="image/*" style="display: none;" onchange="uploadProfilePicture(this)">
+            </div>
+
+            <h3 style="font-size: 1.25rem; margin-bottom: 0.25rem;">{{ current_user.username }}</h3>
+            <p style="color: var(--text-muted); margin-bottom: 0.5rem;">{{ current_user.email }}</p>
+            
+            <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+                <span class="badge badge-{{ 'danger' if current_user.is_main_admin else 'info' if current_user.is_admin else 'success' }}">
+                    {% if current_user.is_main_admin %}
+                    Main Administrator
+                    {% elif current_user.is_admin %}
+                    Administrator
+                    {% else %}
+                    User
+                    {% endif %}
+                </span>
+                <span class="badge badge-info">Member since {{ current_user.created_at|relative_time }}</span>
+            </div>
+        </div>
+
+        <div style="margin-top: 2rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                <span style="color: var(--text-muted);"><i class="fas fa-key" style="width: 20px;"></i> API Key</span>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <code style="background: var(--bg-tertiary); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem;">
+                        {{ current_user.api_key[:10] }}...
+                    </code>
+                    <button class="btn btn-sm btn-outline" onclick="copyAPIKey()" data-tooltip="Copy API Key">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline" onclick="regenerateAPIKey()" data-tooltip="Regenerate">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                <span style="color: var(--text-muted);"><i class="fas fa-clock"></i> Last Login</span>
+                <span>{{ current_user.last_login|relative_time if current_user.last_login else 'Never' }}</span>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                <span style="color: var(--text-muted);"><i class="fas fa-circle"></i> Last Active</span>
+                <span>{{ current_user.last_active|relative_time if current_user.last_active else 'Never' }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Profile Form -->
+    <div class="card" style="grid-column: span 2;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-user-edit"></i>
+                Edit Profile
+            </h3>
+        </div>
+
+        <form method="POST" action="{{ url_for('profile') }}">
+            <div class="grid grid-2">
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input type="text" name="username" class="form-control" value="{{ current_user.username }}">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" name="email" class="form-control" value="{{ current_user.email }}">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Current Password</label>
+                    <input type="password" name="current_password" class="form-control" placeholder="Enter current password">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">New Password</label>
+                    <input type="password" name="new_password" class="form-control" placeholder="Leave blank to keep current">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Confirm New Password</label>
+                    <input type="password" name="confirm_password" class="form-control" placeholder="Confirm new password">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Theme Preference</label>
+                    <select name="theme" class="form-control">
+                        <option value="default" {% if current_user.theme == 'default' %}selected{% endif %}>System Default</option>
+                        <option value="dark" {% if current_user.theme == 'dark' %}selected{% endif %}>Dark</option>
+                        <option value="light" {% if current_user.theme == 'light' %}selected{% endif %}>Light</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+                <button type="button" class="btn btn-danger" onclick="deleteProfilePicture()">
+                    <i class="fas fa-trash"></i> Remove Photo
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-history"></i>
+            Recent Activity
+        </h3>
+    </div>
+
+    {% if activities %}
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Action</th>
+                    <th>Resource</th>
+                    <th>Details</th>
+                    <th>IP Address</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for activity in activities[:10] %}
+                <tr>
+                    <td>
+                        <span class="badge badge-info">{{ activity.action }}</span>
+                    </td>
+                    <td>{{ activity.resource_type or '-' }} {{ activity.resource_id or '' }}</td>
+                    <td>{{ activity.details|truncate(50) }}</td>
+                    <td>{{ activity.ip_address or '-' }}</td>
+                    <td>{{ activity.created_at|relative_time }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="fas fa-history"></i>
+        <p>No activity recorded yet</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Upload profile picture
+    function uploadProfilePicture(input) {
+        if (!input.files || !input.files[0]) return;
+
+        const file = input.files[0];
+        const formData = new FormData();
+        formData.append('picture', file);
+
+        showLoading();
+
+        fetch('/profile/picture', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Profile picture updated', 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Failed to upload', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Upload error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        })
+        .finally(() => {
+            hideLoading();
+        });
+    }
+
+    // Delete profile picture
+    function deleteProfilePicture() {
+        if (!confirm('Are you sure you want to remove your profile picture?')) {
+            return;
+        }
+
+        showLoading();
+
+        fetch('/profile/picture/delete', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Profile picture removed', 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Failed to remove', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Delete error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        })
+        .finally(() => {
+            hideLoading();
+        });
+    }
+
+    // Copy API key
+    function copyAPIKey() {
+        navigator.clipboard.writeText('{{ current_user.api_key }}').then(() => {
+            showToast('API key copied to clipboard', 'success');
+        }).catch(() => {
+            showToast('Failed to copy', 'danger');
+        });
+    }
+
+    // Regenerate API key
+    function regenerateAPIKey() {
+        if (!confirm('Are you sure you want to regenerate your API key? The old key will stop working immediately.')) {
+            return;
+        }
+
+        showLoading();
+
+        fetch('/profile/api-key/regenerate', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('API key regenerated', 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast(data.error || 'Failed to regenerate', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Regenerate error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        })
+        .finally(() => {
+            hideLoading();
+        });
+    }
+</script>
+{% endblock %}
