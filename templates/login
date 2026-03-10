@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Login - {{ panel_name }}{% endblock %}
+
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: center; min-height: 80vh;">
+    <div class="card" style="max-width: 400px; width: 100%;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <img src="{{ get_setting('header_icon', '/static/img/logo.png') }}" alt="{{ panel_name }}" style="height: 64px; margin-bottom: 1rem;">
+            <h2 style="font-size: 1.5rem;">Welcome Back</h2>
+            <p style="color: var(--text-muted);">Sign in to your account</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('login') }}">
+            <div class="form-group">
+                <label class="form-label">Username or Email</label>
+                <input type="text" name="username" class="form-control" placeholder="Enter your username or email" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input type="password" name="password" class="form-control" placeholder="Enter your password" required>
+            </div>
+
+            <div class="form-group" style="display: flex; align-items: center; justify-content: space-between;">
+                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" name="remember" style="accent-color: var(--accent-primary);">
+                    <span style="font-size: 0.875rem;">Remember me</span>
+                </label>
+                <a href="{{ url_for('forgot_password') }}" style="font-size: 0.875rem; color: var(--accent-primary); text-decoration: none;">
+                    Forgot password?
+                </a>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">
+                <i class="fas fa-sign-in-alt"></i>
+                Sign In
+            </button>
+        </form>
+
+        {% if get_setting('registration_enabled', '1') == '1' %}
+        <div style="text-align: center; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+            <p style="color: var(--text-muted); font-size: 0.875rem;">
+                Don't have an account?
+                <a href="{{ url_for('register') }}" style="color: var(--accent-primary); text-decoration: none; font-weight: 500;">
+                    Create Account
+                </a>
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
