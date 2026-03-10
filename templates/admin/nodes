@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Nodes - {{ panel_name }}{% endblock %}
+
+{% block header_title %}Node Management{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumb">
+    <a href="{{ url_for('dashboard') }}" class="breadcrumb-item">Dashboard</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <a href="{{ url_for('admin_dashboard') }}" class="breadcrumb-item">Admin</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <span class="breadcrumb-item active">Nodes</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+    <h2 style="font-size: 1.25rem; margin: 0;">Cluster Nodes</h2>
+    <a href="{{ url_for('admin_node_create') }}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Add Node
+    </a>
+</div>
+
+<!-- Nodes Grid -->
+<div class="grid grid-2" style="margin-bottom: 2rem;">
+    {% for node in nodes %}
+    <div class="card">
+        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+            <div class="stat-icon {% if node.online %}success{% else %}danger{% endif %}" style="width: 48px; height: 48px;">
+                <i class="fas fa-{% if node.online %}check-circle{% else %}exclamation-circle{% endif %}"></i>
+            </div>
+            <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <h3 style="font-size: 1.1rem; margin: 0;">{{ node.name }}</h3>
+                    <span class="badge badge-{{ 'success' if node.online else 'danger' }}">{{ node.status }}</span>
+                    {% if node.is_local %}<span class="badge badge-info">Local</span>{% endif %}
+                </div>
+                <div style="color: var(--text-muted); font-size: 0.875rem;">{{ node.location }}</div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-2" style="margin-bottom: 1rem;">
+            <div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">VPS Usage</div>
+                <div style="font-weight: 600;">{{ node.vps_count }} / {{ node.total_vps or '?' }}</div>
+                <div class="progress" style="margin-top: 0.25rem;">
+                    <div class="progress-bar {% if node.total_vps and (node.vps_count / node.total_vps * 100) > 80 %}danger{% elif node.total_vps and (node.vps_count / node.total_vps * 100) > 60 %}warning{% else %}success{% endif %}"
+                         style="width: {% if node.total_vps %}{{ (node.vps_count / node.total_vps * 100)|round|int }}%{% else %}0%{% endif %}"></div>
+                </div>
+            </div>
+            <div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Last Seen</div>
+                <div>{{ node.last_seen|relative_time if node.last_seen else 'Never' }}</div>
+            </div>
+        </div>
+
+        {% if node.online and node.stats %}
+        <div style="margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                <span style="font-size: 0.75rem;">CPU</span>
+                <span style="font-size: 0.75rem;">{{ node.stats.cpu|round(1) }}%</span>
+            </div>
+            <div class="progress">
+                <div class="progress-bar {% if node.stats.cpu > 80 %}danger{% elif node.stats.cpu > 60 %}warning{% else %}success{% endif %}" style="width: {{ node.stats.cpu }}%;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin: 0.5rem 0 0.25rem;">
+                <span style="font-size: 0.75rem;">RAM</span>
+                <span style="font-size: 0.75rem;">{{ node.stats.ram.percent|round(1) }}%</span>
+            </div>
+            <div class="progress">
+                <div class="progress-bar {% if node.stats.ram.percent > 80 %}danger{% elif node.stats.ram.percent > 60 %}warning{% else %}success{% endif %}" style="width: {{ node.stats.ram.percent }}%;"></div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- IPs -->
+        {% if node.ip_addresses or node.ip_aliases %}
+        <div style="margin-bottom: 1rem; padding: 0.75rem; background: var(--bg-tertiary); border-radius: var(--border-radius-sm);">
+            {% if node.ip_aliases %}
+            <div style="margin-bottom: 0.5rem;">
+                <span style="font-size: 0.7rem; color: var(--text-muted);">Aliases:</span><br>
+                {% for a in node.ip_aliases %}<span class="badge badge-info">{{ a }}</span>{% endfor %}
+            </div>
+            {% endif %}
+            {% if node.ip_addresses %}
+            <div>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">IPs:</span><br>
+                {% for ip in node.ip_addresses %}<span class="badge">{{ ip }}</span>{% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Actions -->
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <a href="{{ url_for('admin_node_view', node_id=node.id) }}" class="btn btn-sm btn-primary">
+                <i class="fas fa-eye"></i> View Details
+            </a>
+            <a href="{{ url_for('admin_node_edit', node_id=node.id) }}" class="btn btn-sm btn-outline">
+                <i class="fas fa-edit"></i> Edit
+            </a>
+            {% if not node.is_local %}
+            <button class="btn btn-sm btn-outline" onclick="checkNode({{ node.id }})">
+                <i class="fas fa-stethoscope"></i> Check
+            </button>
+            <button class="btn btn-sm btn-outline" onclick="regenerateNodeKey({{ node.id }})">
+                <i class="fas fa-key"></i> Regenerate Key
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="deleteNode({{ node.id }}, '{{ node.name|e }}')">
+                <i class="fas fa-trash"></i> Delete
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Add Node Modal -->
+<div class="modal" id="addNodeModal">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3>Add New Node</h3>
+            <button class="modal-close" onclick="hideModal('addNodeModal')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="addNodeForm">
+                <div class="grid grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Node Name *</label>
+                        <input type="text" id="nodeName" class="form-control" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Location *</label>
+                        <input type="text" id="nodeLocation" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Max VPS</label>
+                        <input type="number" id="nodeTotalVPS" class="form-control" value="50" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">API URL</label>
+                        <input type="url" id="nodeURL" class="form-control" placeholder="https://node.example.com:port">
+                        <small>Leave empty for local node</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Tags (comma separated)</label>
+                        <input type="text" id="nodeTags" class="form-control" placeholder="prod, eu, ssd">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">IP Addresses (comma separated)</label>
+                        <input type="text" id="nodeIPs" class="form-control" placeholder="192.168.1.10, 10.0.0.5">
+                    </div>
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label class="form-label">IP Aliases (comma separated)</label>
+                        <input type="text" id="nodeAliases" class="form-control" placeholder="node1.example.com, node1.internal">
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="hideModal('addNodeModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="addNode()">Add Node</button>
+        </div>
+    </div>
+</div>
+
+<!-- API Key Display Modal -->
+<div class="modal" id="apiKeyModal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3>API Key</h3>
+            <button class="modal-close" onclick="hideModal('apiKeyModal')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 1rem;">This is the only time you will see this key. Save it securely.</p>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                <input type="text" id="displayedApiKey" class="form-control" readonly style="font-family: monospace; letter-spacing: 0.5px;">
+                <button class="btn btn-outline" onclick="copyApiKey()">
+                    <i class="fas fa-copy"></i> Copy
+                </button>
+            </div>
+            <small style="color: var(--accent-danger);">Do NOT share this key publicly.</small>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="hideModal('apiKeyModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ─── Modal Helpers ───────────────────────────────────────
+function showModal(id) {
+    const m = document.getElementById(id);
+    if (m) {
+        m.style.display = 'flex';
+        m.classList.add('active');
+    }
+}
+
+function hideModal(id) {
+    const m = document.getElementById(id);
+    if (m) {
+        m.style.display = 'none';
+        m.classList.remove('active');
+    }
+}
+
+// ─── Copy API Key ────────────────────────────────────────
+function copyApiKey() {
+    const input = document.getElementById('displayedApiKey');
+    input.select();
+    input.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(input.value)
+        .then(() => showToast('API key copied to clipboard', 'success'))
+        .catch(() => showToast('Failed to copy', 'danger'));
+}
+
+// ─── Add Node ────────────────────────────────────────────
+function showAddNodeModal() {
+    document.getElementById('addNodeForm').reset();
+    showModal('addNodeModal');
+}
+
+async function addNode() {
+    const btn = event.target;
+    if (btn.disabled) return;
+    btn.disabled = true;
+
+    const name      = document.getElementById('nodeName').value.trim();
+    const location  = document.getElementById('nodeLocation').value.trim();
+    const total_vps = parseInt(document.getElementById('nodeTotalVPS').value) || 50;
+    const url       = document.getElementById('nodeURL').value.trim() || null;
+    const tags      = document.getElementById('nodeTags').value.trim();
+    const ips       = document.getElementById('nodeIPs').value.trim();
+    const aliases   = document.getElementById('nodeAliases').value.trim();
+
+    if (!name || !location) {
+        showToast('Name and location are required', 'warning');
+        btn.disabled = false;
+        return;
+    }
+
+    showLoading();
+    try {
+        const res = await fetch('/admin/nodes/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name, location, total_vps, url, tags, ip_addresses: ips, ip_aliases: aliases})
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            hideModal('addNodeModal');
+            if (data.api_key) {
+                document.getElementById('displayedApiKey').value = data.api_key;
+                showModal('apiKeyModal');
+            } else {
+                showToast('Node created successfully', 'success');
+            }
+            setTimeout(() => location.reload(), 1800);
+        } else {
+            showToast(data.error || 'Failed to add node', 'danger');
+        }
+    } catch (err) {
+        showToast('Network error', 'danger');
+        console.error(err);
+    } finally {
+        hideLoading();
+        btn.disabled = false;
+    }
+}
+
+// ─── Regenerate Key ──────────────────────────────────────
+async function regenerateNodeKey(nodeId) {
+    if (!confirm('Regenerate API key?\nOld key becomes invalid immediately.')) return;
+
+    showLoading();
+    try {
+        const res = await fetch(`/admin/nodes/${nodeId}/regenerate-key`, {method: 'POST'});
+        const data = await res.json();
+
+        if (data.success && data.api_key) {
+            document.getElementById('displayedApiKey').value = data.api_key;
+            showModal('apiKeyModal');
+            setTimeout(() => location.reload(), 2200);
+        } else {
+            showToast(data.error || 'Regeneration failed', 'danger');
+        }
+    } catch (err) {
+        showToast('Network error', 'danger');
+    } finally {
+        hideLoading();
+    }
+}
+
+// ─── Other functions (check, delete) ─────────────────────
+async function checkNode(nodeId) {
+    showLoading();
+    try {
+        const res = await fetch(`/admin/nodes/${nodeId}/check`);
+        const data = await res.json();
+        
+        if (!data.success) {
+            showToast(data.error || 'Check failed', 'danger');
+            return;
+        }
+        
+        let msg = `Node: ${data.name || '—'}\nStatus: ${data.status?.status || '?'}\nOnline: ${data.online ? 'Yes' : 'No'}\nVPS: ${data.vps_count || 0}/${data.total_vps || '?'}`;
+        if (data.online && data.stats) {
+            msg += `\n\nCPU: ${data.stats.cpu?.toFixed(1)}%\nRAM: ${data.stats.ram?.percent?.toFixed(1)}%\nUptime: ${data.stats.uptime || '?'}`;
+        }
+        alert(msg);
+    } catch (err) {
+        console.error('Check node error:', err);
+        showToast('Check failed: ' + err.message, 'danger');
+    } finally {
+        hideLoading();
+    }
+}
+
+function deleteNode(nodeId, name) {
+    if (!confirm(`Delete node "${name}"?`)) return;
+    const force = confirm('Node may have running VPS.\nForce delete and terminate all VPS?');
+
+    showLoading();
+    fetch(`/admin/nodes/${nodeId}/delete`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({force})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Node deleted', 'success');
+            setTimeout(() => location.reload(), 1200);
+        } else {
+            showToast(data.error || 'Delete failed', 'danger');
+        }
+    })
+    .catch(() => showToast('Network error', 'danger'))
+    .finally(hideLoading);
+}
+</script>
+{% endblock %}
